@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+option go_package = "github.com/zbsss/device-manager/generated";
+
+package device_manager;
+
+service DeviceManager {
+  rpc GetToken(GetTokenRequest) returns (GetTokenReply) {}
+}
+
+message GetTokenRequest {
+  
+}
+
+message GetTokenReply {
+  string token = 1;
+}

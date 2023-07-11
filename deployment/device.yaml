@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: device
+spec:
+  containers:
+  - name: device
+    image: docker.io/zbsss/device:latest
+    imagePullPolicy: Always
+
