@@ -3,8 +3,11 @@ package opencl
 // #include "opencl.h"
 import "C"
 import (
+	"context"
 	"errors"
 	"unsafe"
+
+	pb "github.com/zbsss/device-manager/generated"
 )
 
 type CommandQueue struct {
@@ -27,6 +30,8 @@ func createCommandQueue(context Context, device Device) (CommandQueue, error) {
 }
 
 func (c CommandQueue) EnqueueNDRangeKernel(kernel Kernel, workDim uint32, globalWorkSize []uint64) error {
+	Scheduler.GetToken(context.Background(), &pb.GetTokenRequest{})
+
 	errInt := clError(C.clEnqueueNDRangeKernel(c.commandQueue,
 		kernel.kernel,
 		C.cl_uint(workDim),
@@ -65,31 +70,31 @@ func (c CommandQueue) EnqueueReadBuffer(buffer Buffer, blockingRead bool, dataPt
 }
 
 func (c CommandQueue) EnqueueWriteBuffer(buffer Buffer, blockingRead bool, dataPtr interface{}) error {
-    var br C.cl_bool
-    if blockingRead {
-        br = C.CL_TRUE
-    } else {
-        br = C.CL_FALSE
-    }
+	var br C.cl_bool
+	if blockingRead {
+		br = C.CL_TRUE
+	} else {
+		br = C.CL_FALSE
+	}
 
-    var ptr unsafe.Pointer
-    var dataLen uint64
-    switch p := dataPtr.(type) {
-    case []float32:
-        dataLen = uint64(len(p) * 4)
-        ptr = unsafe.Pointer(&p[0])
-    default:
-        return errors.New("Unexpected type for dataPtr")
-    }
+	var ptr unsafe.Pointer
+	var dataLen uint64
+	switch p := dataPtr.(type) {
+	case []float32:
+		dataLen = uint64(len(p) * 4)
+		ptr = unsafe.Pointer(&p[0])
+	default:
+		return errors.New("Unexpected type for dataPtr")
+	}
 
-    errInt := clError(C.clEnqueueWriteBuffer(c.commandQueue,
-        buffer.buffer,
-        br,
-        0,
-        C.size_t(dataLen),
-        ptr,
-        0, nil, nil))
-    return clErrorToError(errInt)
+	errInt := clError(C.clEnqueueWriteBuffer(c.commandQueue,
+		buffer.buffer,
+		br,
+		0,
+		C.size_t(dataLen),
+		ptr,
+		0, nil, nil))
+	return clErrorToError(errInt)
 }
 
 func (c CommandQueue) Release() {

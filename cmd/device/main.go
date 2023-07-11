@@ -1,21 +1,11 @@
 package main
 
 import (
-	"context"
-	"flag"
-	"log"
-	"time"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/zbsss/device-manager/opencl"
-	pb "github.com/zbsss/device-manager/generated"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-)
-
-var (
-	addr = flag.String("addr", "device-manager-service:80", "the address to connect to")
 )
 
 var kernelSource = `
@@ -29,32 +19,6 @@ __kernel void square(
        output[i] = input[i] * input[i];
 }
 `
-
-func pinger() {
-	flag.Parse()
-
-	// Set up a connection to the server.
-	conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-	defer conn.Close()
-
-	c := pb.NewDeviceManagerClient(conn)
-	ctx := context.Background()
-
-	for {
-		// Contact the server and print out its response.
-		r, err := c.GetToken(ctx, &pb.GetTokenRequest{})
-		if err != nil {
-			log.Fatalf("failed to get token: %v", err)
-		}
-		log.Printf("token: %s", r.Token)
-
-		time.Sleep(60 * time.Second)
-	}
-}
-
 
 const (
 	deviceType = opencl.DeviceTypeAll
@@ -143,31 +107,31 @@ func main() {
 
 	printInfo(platform, device)
 
-	var context opencl.Context
-	context, err = device.CreateContext()
+	var ctx opencl.Context
+	ctx, err = device.CreateContext()
 	if err != nil {
 		panic(err)
 	}
-	defer context.Release()
+	defer ctx.Release()
 
 	var commandQueue opencl.CommandQueue
-	commandQueue, err = context.CreateCommandQueue(device)
+	commandQueue, err = ctx.CreateCommandQueue(device)
 	if err != nil {
 		panic(err)
 	}
 	defer commandQueue.Release()
 
 	var program opencl.Program
-	program, err = context.CreateProgramWithSource(programCode)
+	program, err = ctx.CreateProgramWithSource(programCode)
 	if err != nil {
 		panic(err)
 	}
 	defer program.Release()
 
-	var log string
-	err = program.Build(device, &log)
+	var logs string
+	err = program.Build(device, &logs)
 	if err != nil {
-		fmt.Println(log)
+		fmt.Println(logs)
 		panic(err)
 	}
 
@@ -177,72 +141,76 @@ func main() {
 	}
 	defer kernel.Release()
 
-	buffer, err := context.CreateBuffer([]opencl.MemFlags{opencl.MemWriteOnly}, dataSize*4)
+	buffer, err := ctx.CreateBuffer([]opencl.MemFlags{opencl.MemWriteOnly}, dataSize*4)
 	if err != nil {
 		panic(err)
 	}
 	defer buffer.Release()
 
+	buffer1, err := ctx.CreateBuffer([]opencl.MemFlags{opencl.MemReadOnly}, dataSize*4)
+	if err != nil {
+		panic(err)
+	}
+	defer buffer1.Release()
 
-    buffer1, err := context.CreateBuffer([]opencl.MemFlags{opencl.MemReadOnly}, dataSize*4)
-    if err != nil {
-        panic(err)
-    }
-    defer buffer1.Release()
-
-    buffer2, err := context.CreateBuffer([]opencl.MemFlags{opencl.MemReadOnly}, dataSize*4)
-    if err != nil {
-        panic(err)
-    }
-    defer buffer2.Release()
+	buffer2, err := ctx.CreateBuffer([]opencl.MemFlags{opencl.MemReadOnly}, dataSize*4)
+	if err != nil {
+		panic(err)
+	}
+	defer buffer2.Release()
 
 	err = kernel.SetArg(0, buffer.Size(), &buffer)
 	if err != nil {
 		panic(err)
 	}
 
-    err = kernel.SetArg(1, buffer1.Size(), &buffer1)
-    if err != nil {
-        panic(err)
-    }
-
-    err = kernel.SetArg(2, buffer2.Size(), &buffer2)
-    if err != nil {
-        panic(err)
-    }
-
-    write_data := make([]float32, dataSize)
-    for i := 0; i < dataSize; i++ {
-        write_data[i] = float32(i)
-    }
-    err = commandQueue.EnqueueWriteBuffer(buffer1, true, write_data)
-    if err != nil {
-        panic(err)
-    }
-    err = commandQueue.EnqueueWriteBuffer(buffer2, true, write_data)
-    if err != nil {
-        panic(err)
-    }
-
-	err = commandQueue.EnqueueNDRangeKernel(kernel, 1, []uint64{dataSize})
+	err = kernel.SetArg(1, buffer1.Size(), &buffer1)
 	if err != nil {
 		panic(err)
 	}
 
-	commandQueue.Flush()
-	commandQueue.Finish()
-
-	data := make([]float32, dataSize)
-
-	err = commandQueue.EnqueueReadBuffer(buffer, true, data)
+	err = kernel.SetArg(2, buffer2.Size(), &buffer2)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println()
-	printHeader("Output")
-	for _, item := range data {
-		fmt.Printf("%v ", item)
+	write_data := make([]float32, dataSize)
+	for i := 0; i < dataSize; i++ {
+		write_data[i] = float32(i)
 	}
-	fmt.Println()
+
+	for {
+		err = commandQueue.EnqueueWriteBuffer(buffer1, true, write_data)
+		if err != nil {
+			panic(err)
+		}
+		err = commandQueue.EnqueueWriteBuffer(buffer2, true, write_data)
+		if err != nil {
+			panic(err)
+		}
+
+		err = commandQueue.EnqueueNDRangeKernel(kernel, 1, []uint64{dataSize})
+		if err != nil {
+			panic(err)
+		}
+
+		data := make([]float32, dataSize)
+
+		err = commandQueue.EnqueueReadBuffer(buffer, true, data)
+		if err != nil {
+			panic(err)
+		}
+
+		commandQueue.Flush()
+		commandQueue.Finish()
+
+		fmt.Println()
+		printHeader("Output")
+		for _, item := range data {
+			fmt.Printf("%v ", item)
+		}
+		fmt.Println()
+
+		time.Sleep(60 * time.Second)
+	}
 }

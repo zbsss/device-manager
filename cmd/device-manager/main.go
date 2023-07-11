@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 
 	pb "github.com/zbsss/device-manager/generated"
 	"google.golang.org/grpc"
@@ -20,9 +21,13 @@ type server struct {
 	pb.UnimplementedDeviceManagerServer
 }
 
-// grpcurl -plaintext 127.0.0.1:50051 device_manager.DeviceManager/GetToken
 func (s *server) GetToken(ctx context.Context, in *pb.GetTokenRequest) (*pb.GetTokenReply, error) {
 	log.Printf("Received: GetToken")
+
+	time.Sleep(10 * time.Second)
+
+	log.Printf("Sending token")
+
 	return &pb.GetTokenReply{Token: "ala ma kota"}, nil
 }
 
