@@ -23,6 +23,8 @@ const (
 	DeviceManager_ReturnToken_FullMethodName       = "/device_manager.DeviceManager/ReturnToken"
 	DeviceManager_GetMemoryQuota_FullMethodName    = "/device_manager.DeviceManager/GetMemoryQuota"
 	DeviceManager_ReturnMemoryQuota_FullMethodName = "/device_manager.DeviceManager/ReturnMemoryQuota"
+	DeviceManager_RegisterDevice_FullMethodName    = "/device_manager.DeviceManager/RegisterDevice"
+	DeviceManager_RegisterPodQuota_FullMethodName  = "/device_manager.DeviceManager/RegisterPodQuota"
 )
 
 // DeviceManagerClient is the client API for DeviceManager service.
@@ -33,6 +35,8 @@ type DeviceManagerClient interface {
 	ReturnToken(ctx context.Context, in *ReturnTokenRequest, opts ...grpc.CallOption) (*ReturnTokenReply, error)
 	GetMemoryQuota(ctx context.Context, in *GetMemoryQuotaRequest, opts ...grpc.CallOption) (*GetMemoryQuotaReply, error)
 	ReturnMemoryQuota(ctx context.Context, in *ReturnMemoryQuotaRequest, opts ...grpc.CallOption) (*ReturnMemoryQuotaReply, error)
+	RegisterDevice(ctx context.Context, in *RegisterDeviceRequest, opts ...grpc.CallOption) (*RegisterDeviceReply, error)
+	RegisterPodQuota(ctx context.Context, in *RegisterPodQuotaRequest, opts ...grpc.CallOption) (*RegisterPodQuotaReply, error)
 }
 
 type deviceManagerClient struct {
@@ -79,6 +83,24 @@ func (c *deviceManagerClient) ReturnMemoryQuota(ctx context.Context, in *ReturnM
 	return out, nil
 }
 
+func (c *deviceManagerClient) RegisterDevice(ctx context.Context, in *RegisterDeviceRequest, opts ...grpc.CallOption) (*RegisterDeviceReply, error) {
+	out := new(RegisterDeviceReply)
+	err := c.cc.Invoke(ctx, DeviceManager_RegisterDevice_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *deviceManagerClient) RegisterPodQuota(ctx context.Context, in *RegisterPodQuotaRequest, opts ...grpc.CallOption) (*RegisterPodQuotaReply, error) {
+	out := new(RegisterPodQuotaReply)
+	err := c.cc.Invoke(ctx, DeviceManager_RegisterPodQuota_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DeviceManagerServer is the server API for DeviceManager service.
 // All implementations must embed UnimplementedDeviceManagerServer
 // for forward compatibility
@@ -87,6 +109,8 @@ type DeviceManagerServer interface {
 	ReturnToken(context.Context, *ReturnTokenRequest) (*ReturnTokenReply, error)
 	GetMemoryQuota(context.Context, *GetMemoryQuotaRequest) (*GetMemoryQuotaReply, error)
 	ReturnMemoryQuota(context.Context, *ReturnMemoryQuotaRequest) (*ReturnMemoryQuotaReply, error)
+	RegisterDevice(context.Context, *RegisterDeviceRequest) (*RegisterDeviceReply, error)
+	RegisterPodQuota(context.Context, *RegisterPodQuotaRequest) (*RegisterPodQuotaReply, error)
 	mustEmbedUnimplementedDeviceManagerServer()
 }
 
@@ -105,6 +129,12 @@ func (UnimplementedDeviceManagerServer) GetMemoryQuota(context.Context, *GetMemo
 }
 func (UnimplementedDeviceManagerServer) ReturnMemoryQuota(context.Context, *ReturnMemoryQuotaRequest) (*ReturnMemoryQuotaReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReturnMemoryQuota not implemented")
+}
+func (UnimplementedDeviceManagerServer) RegisterDevice(context.Context, *RegisterDeviceRequest) (*RegisterDeviceReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RegisterDevice not implemented")
+}
+func (UnimplementedDeviceManagerServer) RegisterPodQuota(context.Context, *RegisterPodQuotaRequest) (*RegisterPodQuotaReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RegisterPodQuota not implemented")
 }
 func (UnimplementedDeviceManagerServer) mustEmbedUnimplementedDeviceManagerServer() {}
 
@@ -191,6 +221,42 @@ func _DeviceManager_ReturnMemoryQuota_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DeviceManager_RegisterDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceManagerServer).RegisterDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceManager_RegisterDevice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceManagerServer).RegisterDevice(ctx, req.(*RegisterDeviceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DeviceManager_RegisterPodQuota_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterPodQuotaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceManagerServer).RegisterPodQuota(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceManager_RegisterPodQuota_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceManagerServer).RegisterPodQuota(ctx, req.(*RegisterPodQuotaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DeviceManager_ServiceDesc is the grpc.ServiceDesc for DeviceManager service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -213,6 +279,14 @@ var DeviceManager_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReturnMemoryQuota",
 			Handler:    _DeviceManager_ReturnMemoryQuota_Handler,
+		},
+		{
+			MethodName: "RegisterDevice",
+			Handler:    _DeviceManager_RegisterDevice_Handler,
+		},
+		{
+			MethodName: "RegisterPodQuota",
+			Handler:    _DeviceManager_RegisterPodQuota_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

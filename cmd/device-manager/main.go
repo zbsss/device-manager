@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
+	"sync"
 	"time"
 
 	pb "github.com/zbsss/device-manager/generated"
@@ -17,25 +19,44 @@ var (
 	port          = flag.Int("port", 50051, "The server port")
 	tokenLifetime = flag.Int("token", 250, "Lifetime of token in milliseconds")
 	windowSize    = flag.Int("windowSize", 10000, "Window size in milliseconds")
+	verbose       = flag.Bool("verbose", true, "Window size in milliseconds")
 )
 
 type server struct {
 	pb.UnimplementedDeviceManagerServer
 }
 
-var podMemoryQuota = map[string]float64{
-	"pod-1": 1.0,
+type Pod struct {
+	Id          string
+	MemoryQuota float64
+	MemoryLimit uint64
+	MemoryUsed  uint64
 }
 
-var podMemoryQuotaUsage = map[string]uint64{
-	"pod-1": 0,
+type Device struct {
+	mut         *sync.Mutex
+	Id          string
+	MemoryTotal uint64
+	MemoryUsed  uint64
+	Pods        map[string]*Pod
 }
 
-var deviceTotalMemory = map[string]uint64{
-	"1": 1536,
+var devices = map[string]*Device{
+	"1": {
+		mut:         &sync.Mutex{},
+		Id:          "1",
+		MemoryTotal: 1000000000,
+		MemoryUsed:  0,
+		Pods: map[string]*Pod{
+			"pod-1": {
+				Id:          "pod-1",
+				MemoryQuota: 0.5,
+				MemoryLimit: 500000000,
+				MemoryUsed:  0,
+			},
+		},
+	},
 }
-
-var devicesMemoryUsage = map[string]uint64{}
 
 func (s *server) GetToken(ctx context.Context, in *pb.GetTokenRequest) (*pb.GetTokenReply, error) {
 	log.Printf("Received: GetToken for device %s", in.Device)
@@ -60,15 +81,30 @@ func (s *server) GetMemoryQuota(ctx context.Context, in *pb.GetMemoryQuotaReques
 
 	podId := "pod-1"
 
-	if deviceTotalMemory[in.Device] < devicesMemoryUsage[in.Device]+in.Memory ||
-		uint64(podMemoryQuota[podId]*float64(deviceTotalMemory[in.Device])) < podMemoryQuotaUsage[podId]+in.Memory {
-		return nil, fmt.Errorf("OOM: memory quota exceeded")
+	var device *Device
+	var pod *Pod
+	var ok bool
+
+	if device, ok = devices[in.Device]; !ok {
+		return nil, fmt.Errorf("device not registered")
 	}
 
-	devicesMemoryUsage[in.Device] += in.Memory
-	podMemoryQuotaUsage[podId] += in.Memory
+	device.mut.Lock()
 
-	log.Println(devicesMemoryUsage[in.Device])
+	if pod, ok = device.Pods[podId]; !ok {
+		return nil, fmt.Errorf("pod not registered")
+	}
+
+	if device.MemoryUsed+in.Memory > device.MemoryTotal || pod.MemoryUsed+in.Memory > pod.MemoryLimit {
+		return nil, fmt.Errorf("OOM: memory limit exceeded")
+	}
+
+	device.MemoryUsed += in.Memory
+	pod.MemoryUsed += in.Memory
+
+	device.mut.Unlock()
+
+	log.Println(device.MemoryUsed)
 
 	return &pb.GetMemoryQuotaReply{}, nil
 }
@@ -78,25 +114,96 @@ func (s *server) ReturnMemoryQuota(ctx context.Context, in *pb.ReturnMemoryQuota
 
 	podId := "pod-1"
 
-	devicesMemoryUsage[in.Device] -= in.Memory
-	podMemoryQuotaUsage[podId] -= in.Memory
+	var device *Device
+	var pod *Pod
+	var ok bool
 
-	log.Println(devicesMemoryUsage[in.Device])
+	if device, ok = devices[in.Device]; !ok {
+		return nil, fmt.Errorf("device not registered")
+	}
+
+	if pod, ok = device.Pods[podId]; !ok {
+		return nil, fmt.Errorf("pod not registered")
+	}
+
+	device.mut.Lock()
+
+	device.MemoryUsed -= in.Memory
+	pod.MemoryUsed -= in.Memory
+
+	device.mut.Unlock()
+
+	log.Println(device.MemoryUsed)
 
 	return &pb.ReturnMemoryQuotaReply{}, nil
+}
+
+func (s *server) RegisterDevice(ctx context.Context, in *pb.RegisterDeviceRequest) (*pb.RegisterDeviceReply, error) {
+	log.Printf("Received: RegisterDevice for device %s", in.Device)
+
+	if _, ok := devices[in.Device]; ok {
+		return nil, fmt.Errorf("device already registered")
+	}
+
+	devices[in.Device] = &Device{
+		mut:         &sync.Mutex{},
+		Id:          in.Device,
+		MemoryTotal: in.Memory,
+		MemoryUsed:  0,
+		Pods:        map[string]*Pod{},
+	}
+
+	return &pb.RegisterDeviceReply{}, nil
+}
+
+func (s *server) RegisterPodQuota(ctx context.Context, in *pb.RegisterPodQuotaRequest) (*pb.RegisterPodQuotaReply, error) {
+	log.Printf("Received: RegisterPod for device %s and pod %s", in.Device, in.Pod)
+
+	var device *Device
+	var ok bool
+
+	if device, ok = devices[in.Device]; !ok {
+		return nil, fmt.Errorf("device not registered")
+	}
+
+	device.mut.Lock()
+
+	device.Pods[in.Pod] = &Pod{
+		Id:          in.Pod,
+		MemoryQuota: in.Memory,
+		MemoryLimit: uint64(in.Memory * float64(device.MemoryTotal)),
+		MemoryUsed:  0,
+	}
+
+	device.mut.Unlock()
+
+	return &pb.RegisterPodQuotaReply{}, nil
+}
+
+func stateLoggerDaemon() {
+	for {
+		var sb strings.Builder
+		sb.WriteString("\n===Current state===")
+		for _, device := range devices {
+			sb.WriteString(fmt.Sprintf("\nDevice %s: %d/%d", device.Id, device.MemoryUsed, device.MemoryTotal))
+
+			for _, pod := range device.Pods {
+				sb.WriteString(fmt.Sprintf("\n\tPod %s: %d/%d", pod.Id, pod.MemoryUsed, pod.MemoryLimit))
+			}
+		}
+		sb.WriteString("\n===================\n")
+		log.Println(sb.String())
+
+		time.Sleep(10 * time.Second)
+	}
 }
 
 func main() {
 	flag.Parse()
 
-	go func() {
-		for {
-			log.Println("Memory usage per device: ", devicesMemoryUsage)
-			log.Println("Memory usage per pod: ", devicesMemoryUsage)
-
-			time.Sleep(10 * time.Second)
-		}
-	}()
+	if *verbose {
+		go stateLoggerDaemon()
+	}
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *port))
 	if err != nil {

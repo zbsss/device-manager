@@ -10,6 +10,9 @@ service DeviceManager {
 
   rpc GetMemoryQuota(GetMemoryQuotaRequest) returns (GetMemoryQuotaReply) {}
   rpc ReturnMemoryQuota(ReturnMemoryQuotaRequest) returns (ReturnMemoryQuotaReply) {}
+
+  rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceReply) {}
+  rpc RegisterPodQuota(RegisterPodQuotaRequest) returns (RegisterPodQuotaReply) {}
 }
 
 message GetTokenRequest {
@@ -43,3 +46,22 @@ message ReturnMemoryQuotaRequest {
 message ReturnMemoryQuotaReply {
 }
 
+message RegisterDeviceRequest {
+  string device = 1;
+  uint64 memory = 2;
+}
+
+message RegisterDeviceReply {
+}
+
+message RegisterPodQuotaRequest {
+  string device = 1;
+  string pod = 2;
+
+  double requests = 3;
+  double limit = 4;
+  double memory = 5;
+}
+
+message RegisterPodQuotaReply {
+}
