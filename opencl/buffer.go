@@ -2,6 +2,12 @@ package opencl
 
 // #include "opencl.h"
 import "C"
+import (
+	"context"
+	"unsafe"
+
+	pb "github.com/zbsss/device-manager/generated"
+)
 
 type MemFlags uint64
 
@@ -43,5 +49,12 @@ func (b Buffer) Size() uint64 {
 }
 
 func (b Buffer) Release() {
+	var size C.size_t
+	C.clGetMemObjectInfo(b.buffer, C.CL_MEM_SIZE, C.size_t(unsafe.Sizeof(size)), unsafe.Pointer(&size), nil)
+
 	C.clReleaseMemObject(b.buffer)
+
+	ctx := context.Background()
+	deviceId := "1"
+	Scheduler.ReturnMemoryQuota(ctx, &pb.ReturnMemoryQuotaRequest{Device: deviceId, Memory: uint64(size)})
 }

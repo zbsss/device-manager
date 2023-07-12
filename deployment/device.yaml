@@ -7,4 +7,8 @@ spec:
   - name: device
     image: docker.io/zbsss/device:latest
     imagePullPolicy: Always
-
+    env:
+      - name: MY_POD_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP

@@ -32,6 +32,7 @@ const (
 	DeviceCompilerAvailable            = DeviceInfo(C.CL_DEVICE_COMPILER_AVAILABLE)
 	DeviceInfoType                     = DeviceInfo(C.CL_DEVICE_TYPE)
 	DeviceVendor                       = DeviceInfo(C.CL_DEVICE_VENDOR)
+	DeviceName                         = DeviceInfo(C.CL_DEVICE_NAME)
 	DriverVersion                      = DeviceInfo(C.CL_DRIVER_VERSION)
 )
 
@@ -43,6 +44,7 @@ var (
 		DeviceCompilerAvailable: {false},
 		DeviceInfoType:          {DeviceTypeDefault},
 		DeviceVendor:            {""},
+		DeviceName:              {""},
 		DriverVersion:           {"", MajorMinor{}},
 	}
 )
@@ -150,7 +152,7 @@ func (d Device) GetInfo(name DeviceInfo, output interface{}) error {
 			*t = elems
 		}
 
-	case *uint32, *bool, *DeviceType:
+	case *uint32, *uint64, *bool, *DeviceType:
 		return d.getInfoNum(name, output)
 
 	case *MajorMinor:

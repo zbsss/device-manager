@@ -1,6 +1,12 @@
 # Start from a base image with Go installed
 FROM golang:1.17
 
+RUN apt-get update && apt-get install -y \
+    gcc \
+    pocl-opencl-icd \
+    opencl-headers \
+    ocl-icd-opencl-dev
+
 # Set the Current Working Directory inside the container
 WORKDIR /app
 

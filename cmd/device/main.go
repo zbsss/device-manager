@@ -55,10 +55,17 @@ func printInfo(platform opencl.Platform, device opencl.Device) {
 		panic(err)
 	}
 
+	var deviceName string
+	err = device.GetInfo(opencl.DeviceName, &deviceName)
+	if err != nil {
+		panic(err)
+	}
+
 	fmt.Println()
 	printHeader("Using")
 	fmt.Println("Platform:", platformName)
 	fmt.Println("Vendor:  ", vendor)
+	fmt.Println("Device Name:  ", deviceName)
 }
 
 func main() {
@@ -179,7 +186,7 @@ func main() {
 		write_data[i] = float32(i)
 	}
 
-	for {
+	for i := 0; i < 1; i++ {
 		err = commandQueue.EnqueueWriteBuffer(buffer1, true, write_data)
 		if err != nil {
 			panic(err)
@@ -211,6 +218,6 @@ func main() {
 		}
 		fmt.Println()
 
-		time.Sleep(60 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }

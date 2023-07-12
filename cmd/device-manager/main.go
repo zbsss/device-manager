@@ -14,21 +14,52 @@ import (
 )
 
 var (
-	port = flag.Int("port", 50051, "The server port")
+	port          = flag.Int("port", 50051, "The server port")
+	tokenLifetime = flag.Int("token", 250, "Lifetime of token in milliseconds")
 )
 
 type server struct {
 	pb.UnimplementedDeviceManagerServer
 }
 
-func (s *server) GetToken(ctx context.Context, in *pb.GetTokenRequest) (*pb.GetTokenReply, error) {
-	log.Printf("Received: GetToken")
+var devicesMemoryUsage = map[string]uint64{}
 
-	time.Sleep(10 * time.Second)
+func (s *server) GetToken(ctx context.Context, in *pb.GetTokenRequest) (*pb.GetTokenReply, error) {
+	log.Printf("Received: GetToken for device %s", in.Device)
+
+	time.Sleep(5 * time.Second)
 
 	log.Printf("Sending token")
 
-	return &pb.GetTokenReply{Token: "ala ma kota"}, nil
+	expiresAt := time.Now().Add(time.Duration(*tokenLifetime) * time.Millisecond).UnixNano()
+
+	return &pb.GetTokenReply{ExpiresAt: expiresAt}, nil
+}
+
+func (s *server) ReturnToken(ctx context.Context, in *pb.ReturnTokenRequest) (*pb.ReturnTokenReply, error) {
+	log.Printf("Received: ReturnToken")
+
+	return &pb.ReturnTokenReply{}, nil
+}
+
+func (s *server) GetMemoryQuota(ctx context.Context, in *pb.GetMemoryQuotaRequest) (*pb.GetMemoryQuotaReply, error) {
+	log.Printf("Received: GetMemoryQuota for device %s: %d", in.Device, in.Memory)
+
+	devicesMemoryUsage[in.Device] += in.Memory
+
+	log.Println(devicesMemoryUsage[in.Device])
+
+	return &pb.GetMemoryQuotaReply{}, nil
+}
+
+func (s *server) ReturnMemoryQuota(ctx context.Context, in *pb.ReturnMemoryQuotaRequest) (*pb.ReturnMemoryQuotaReply, error) {
+	log.Printf("Received: ReturnMemoryQuota for device %s: %d", in.Device, in.Memory)
+
+	devicesMemoryUsage[in.Device] -= in.Memory
+
+	log.Println(devicesMemoryUsage[in.Device])
+
+	return &pb.ReturnMemoryQuotaReply{}, nil
 }
 
 func main() {

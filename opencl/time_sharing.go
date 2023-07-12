@@ -8,8 +8,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// device-manager-service:80
 const addr = "127.0.0.1:50051"
+
+// const addr = "device-manager-service:80"
 
 type scheduler = pb.DeviceManagerClient
 

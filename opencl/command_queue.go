@@ -11,6 +11,8 @@ import (
 )
 
 type CommandQueue struct {
+	context      Context
+	device       Device
 	commandQueue C.cl_command_queue
 }
 
@@ -26,11 +28,15 @@ func createCommandQueue(context Context, device Device) (CommandQueue, error) {
 		return CommandQueue{}, clErrorToError(errInt)
 	}
 
-	return CommandQueue{queue}, nil
+	return CommandQueue{context, device, queue}, nil
 }
 
 func (c CommandQueue) EnqueueNDRangeKernel(kernel Kernel, workDim uint32, globalWorkSize []uint64) error {
-	Scheduler.GetToken(context.Background(), &pb.GetTokenRequest{})
+	ctx := context.Background()
+	deviceId := "1"
+	Scheduler.GetToken(ctx, &pb.GetTokenRequest{
+		Device: deviceId,
+	})
 
 	errInt := clError(C.clEnqueueNDRangeKernel(c.commandQueue,
 		kernel.kernel,
@@ -38,7 +44,14 @@ func (c CommandQueue) EnqueueNDRangeKernel(kernel Kernel, workDim uint32, global
 		nil,
 		(*C.size_t)(&globalWorkSize[0]),
 		nil, 0, nil, nil))
-	return clErrorToError(errInt)
+
+	err := clErrorToError(errInt)
+
+	Scheduler.ReturnToken(ctx, &pb.ReturnTokenRequest{
+		Device: deviceId,
+	})
+
+	return err
 }
 
 func (c CommandQueue) EnqueueReadBuffer(buffer Buffer, blockingRead bool, dataPtr interface{}) error {
@@ -56,7 +69,7 @@ func (c CommandQueue) EnqueueReadBuffer(buffer Buffer, blockingRead bool, dataPt
 		dataLen = uint64(len(p) * 4)
 		ptr = unsafe.Pointer(&p[0])
 	default:
-		return errors.New("Unexpected type for dataPtr")
+		return errors.New("unexpected type for dataPtr")
 	}
 
 	errInt := clError(C.clEnqueueReadBuffer(c.commandQueue,
@@ -84,7 +97,7 @@ func (c CommandQueue) EnqueueWriteBuffer(buffer Buffer, blockingRead bool, dataP
 		dataLen = uint64(len(p) * 4)
 		ptr = unsafe.Pointer(&p[0])
 	default:
-		return errors.New("Unexpected type for dataPtr")
+		return errors.New("unexpected type for dataPtr")
 	}
 
 	errInt := clError(C.clEnqueueWriteBuffer(c.commandQueue,
