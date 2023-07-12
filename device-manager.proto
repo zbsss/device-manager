@@ -17,6 +17,7 @@ service DeviceManager {
 
 message GetTokenRequest {
   string device = 1;
+  string pod = 2;
 }
 
 message GetTokenReply {
@@ -25,6 +26,7 @@ message GetTokenReply {
 
 message ReturnTokenRequest {
   string device = 1;
+  string pod = 2;
 }
 
 message ReturnTokenReply {
@@ -32,7 +34,8 @@ message ReturnTokenReply {
 
 message GetMemoryQuotaRequest {
   string device = 1;
-  uint64 memory = 2;
+  string pod = 2;
+  uint64 memory = 3;
 }
 
 message GetMemoryQuotaReply {
@@ -40,7 +43,8 @@ message GetMemoryQuotaReply {
 
 message ReturnMemoryQuotaRequest {
   string device = 1;
-  uint64 memory = 2;
+  string pod = 2;
+  uint64 memory = 3;
 }
 
 message ReturnMemoryQuotaReply {

@@ -42,9 +42,9 @@ type Device struct {
 }
 
 var devices = map[string]*Device{
-	"1": {
+	"dev-1": {
 		mut:         &sync.Mutex{},
-		Id:          "1",
+		Id:          "dev-1",
 		MemoryTotal: 1000000000,
 		MemoryUsed:  0,
 		Pods: map[string]*Pod{
@@ -52,7 +52,9 @@ var devices = map[string]*Device{
 				Id:          "pod-1",
 				MemoryQuota: 0.5,
 				MemoryLimit: 500000000,
-				MemoryUsed:  0,
+				// TODO: when pod is killed the memory is not returned.
+				// Need to add a expiration time after which the memeory is returned automatically
+				MemoryUsed: 0,
 			},
 		},
 	},
@@ -79,18 +81,26 @@ func (s *server) ReturnToken(ctx context.Context, in *pb.ReturnTokenRequest) (*p
 func (s *server) GetMemoryQuota(ctx context.Context, in *pb.GetMemoryQuotaRequest) (*pb.GetMemoryQuotaReply, error) {
 	log.Printf("Received: GetMemoryQuota for device %s: %d", in.Device, in.Memory)
 
-	podId := "pod-1"
+	if in.Device == "" {
+		return nil, fmt.Errorf("device not specified")
+	}
+	if in.Pod == "" {
+		return nil, fmt.Errorf("pod not specified")
+	}
+	if in.Memory <= 0 {
+		return nil, fmt.Errorf("memory value is invalid")
+	}
 
 	var device *Device
 	var pod *Pod
 	var ok bool
 
 	if device, ok = devices[in.Device]; !ok {
-		return nil, fmt.Errorf("device not registered")
+		return nil, fmt.Errorf("device %s not registered", in.Device)
 	}
 
-	if pod, ok = device.Pods[podId]; !ok {
-		return nil, fmt.Errorf("pod not registered")
+	if pod, ok = device.Pods[in.Pod]; !ok {
+		return nil, fmt.Errorf("pod %s not registered", in.Pod)
 	}
 
 	device.mut.Lock()
@@ -113,18 +123,26 @@ func (s *server) GetMemoryQuota(ctx context.Context, in *pb.GetMemoryQuotaReques
 func (s *server) ReturnMemoryQuota(ctx context.Context, in *pb.ReturnMemoryQuotaRequest) (*pb.ReturnMemoryQuotaReply, error) {
 	log.Printf("Received: ReturnMemoryQuota for device %s: %d", in.Device, in.Memory)
 
-	podId := "pod-1"
+	if in.Device == "" {
+		return nil, fmt.Errorf("device not specified")
+	}
+	if in.Pod == "" {
+		return nil, fmt.Errorf("pod not specified")
+	}
+	if in.Memory <= 0 {
+		return nil, fmt.Errorf("memory value is invalid")
+	}
 
 	var device *Device
 	var pod *Pod
 	var ok bool
 
 	if device, ok = devices[in.Device]; !ok {
-		return nil, fmt.Errorf("device not registered")
+		return nil, fmt.Errorf("device %s not registered", in.Device)
 	}
 
-	if pod, ok = device.Pods[podId]; !ok {
-		return nil, fmt.Errorf("pod not registered")
+	if pod, ok = device.Pods[in.Pod]; !ok {
+		return nil, fmt.Errorf("pod %s not registered", in.Pod)
 	}
 
 	device.mut.Lock()
@@ -160,11 +178,18 @@ func (s *server) RegisterDevice(ctx context.Context, in *pb.RegisterDeviceReques
 func (s *server) RegisterPodQuota(ctx context.Context, in *pb.RegisterPodQuotaRequest) (*pb.RegisterPodQuotaReply, error) {
 	log.Printf("Received: RegisterPod for device %s and pod %s", in.Device, in.Pod)
 
+	if in.Device == "" {
+		return nil, fmt.Errorf("device not specified")
+	}
+	if in.Pod == "" {
+		return nil, fmt.Errorf("pod not specified")
+	}
+
 	var device *Device
 	var ok bool
 
 	if device, ok = devices[in.Device]; !ok {
-		return nil, fmt.Errorf("device not registered")
+		return nil, fmt.Errorf("device %s not registered", in.Device)
 	}
 
 	device.mut.Lock()

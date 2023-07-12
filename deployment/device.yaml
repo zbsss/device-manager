@@ -8,7 +8,9 @@ spec:
     image: docker.io/zbsss/device:latest
     imagePullPolicy: Always
     env:
-      - name: MY_POD_IP
-        valueFrom:
-          fieldRef:
-            fieldPath: status.podIP
+    - name: CLIENT_ID
+      value: "pod-1"
+    - name: DEVICE_ID
+      value: "dev-1"
+    - name: DEVICE_MANAGER_SERVICE_ADDR
+      value: "device-manager-service:80"

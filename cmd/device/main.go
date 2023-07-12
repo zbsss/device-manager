@@ -186,7 +186,7 @@ func main() {
 		write_data[i] = float32(i)
 	}
 
-	for i := 0; i < 1; i++ {
+	for {
 		err = commandQueue.EnqueueWriteBuffer(buffer1, true, write_data)
 		if err != nil {
 			panic(err)
@@ -218,6 +218,6 @@ func main() {
 		}
 		fmt.Println()
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(30 * time.Second)
 	}
 }

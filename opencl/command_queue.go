@@ -12,7 +12,6 @@ import (
 
 type CommandQueue struct {
 	context      Context
-	device       Device
 	commandQueue C.cl_command_queue
 }
 
@@ -28,14 +27,14 @@ func createCommandQueue(context Context, device Device) (CommandQueue, error) {
 		return CommandQueue{}, clErrorToError(errInt)
 	}
 
-	return CommandQueue{context, device, queue}, nil
+	return CommandQueue{context, queue}, nil
 }
 
 func (c CommandQueue) EnqueueNDRangeKernel(kernel Kernel, workDim uint32, globalWorkSize []uint64) error {
 	ctx := context.Background()
-	deviceId := "1"
 	_, err := Scheduler.GetToken(ctx, &pb.GetTokenRequest{
-		Device: deviceId,
+		Pod:    ClientId,
+		Device: DeviceId,
 	})
 	if err != nil {
 		return err
@@ -51,7 +50,8 @@ func (c CommandQueue) EnqueueNDRangeKernel(kernel Kernel, workDim uint32, global
 	clErr := clErrorToError(errInt)
 
 	_, err = Scheduler.ReturnToken(ctx, &pb.ReturnTokenRequest{
-		Device: deviceId,
+		Pod:    ClientId,
+		Device: DeviceId,
 	})
 	if err != nil {
 		return err
