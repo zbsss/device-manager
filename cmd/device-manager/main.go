@@ -89,13 +89,14 @@ func (s *server) GetMemoryQuota(ctx context.Context, in *pb.GetMemoryQuotaReques
 		return nil, fmt.Errorf("device not registered")
 	}
 
-	device.mut.Lock()
-
 	if pod, ok = device.Pods[podId]; !ok {
 		return nil, fmt.Errorf("pod not registered")
 	}
 
+	device.mut.Lock()
+
 	if device.MemoryUsed+in.Memory > device.MemoryTotal || pod.MemoryUsed+in.Memory > pod.MemoryLimit {
+		device.mut.Unlock()
 		return nil, fmt.Errorf("OOM: memory limit exceeded")
 	}
 
