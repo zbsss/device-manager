@@ -17,10 +17,13 @@ import (
 
 var (
 	port          = flag.Int("port", 50051, "The server port")
-	tokenLifetime = flag.Int("token", 250, "Lifetime of token in milliseconds")
+	tokenLifetime = flag.Int("token-life", 250, "Lifetime of token in milliseconds")
 	windowSize    = flag.Int("windowSize", 10000, "Window size in milliseconds")
 	verbose       = flag.Bool("verbose", true, "Window size in milliseconds")
 )
+
+var windowDuration = time.Duration(*windowSize) * time.Millisecond
+var tokenDuration = time.Duration(*tokenLifetime) * time.Millisecond
 
 type server struct {
 	pb.UnimplementedDeviceManagerServer
@@ -63,17 +66,41 @@ var devices = map[string]*Device{
 func (s *server) GetToken(ctx context.Context, in *pb.GetTokenRequest) (*pb.GetTokenReply, error) {
 	log.Printf("Received: GetToken for device %s", in.Device)
 
-	time.Sleep(5 * time.Second)
+	if in.Device == "" {
+		return nil, fmt.Errorf("device not specified")
+	}
+	if in.Pod == "" {
+		return nil, fmt.Errorf("pod not specified")
+	}
+
+	req := &TokenLeaseRequest{
+		PodId:    in.Pod,
+		Response: make(chan *TokenLease),
+	}
+
+	GetScheduler(in.Device).EnqueueLeaseRequest(req)
+	token := <-req.Response
 
 	log.Printf("Sending token")
 
-	expiresAt := time.Now().Add(time.Duration(*tokenLifetime) * time.Millisecond).UnixNano()
-
-	return &pb.GetTokenReply{ExpiresAt: expiresAt}, nil
+	return &pb.GetTokenReply{ExpiresAt: token.ExpiresAt.Unix()}, nil
 }
 
 func (s *server) ReturnToken(ctx context.Context, in *pb.ReturnTokenRequest) (*pb.ReturnTokenReply, error) {
 	log.Printf("Received: ReturnToken")
+
+	if in.Device == "" {
+		return nil, fmt.Errorf("device not specified")
+	}
+	if in.Pod == "" {
+		return nil, fmt.Errorf("pod not specified")
+	}
+
+	err := GetScheduler(in.Device).ReturnLease(&TokenLease{PodId: in.Pod})
+
+	if err != nil {
+		log.Printf("Error returning token: %s", err)
+	}
 
 	return &pb.ReturnTokenReply{}, nil
 }
@@ -172,6 +199,8 @@ func (s *server) RegisterDevice(ctx context.Context, in *pb.RegisterDeviceReques
 		Pods:        map[string]*Pod{},
 	}
 
+	StartScheduler(in.Device)
+
 	return &pb.RegisterDeviceReply{}, nil
 }
 
@@ -193,6 +222,7 @@ func (s *server) RegisterPodQuota(ctx context.Context, in *pb.RegisterPodQuotaRe
 	}
 
 	device.mut.Lock()
+	defer device.mut.Unlock()
 
 	device.Pods[in.Pod] = &Pod{
 		Id:          in.Pod,
@@ -200,8 +230,6 @@ func (s *server) RegisterPodQuota(ctx context.Context, in *pb.RegisterPodQuotaRe
 		MemoryLimit: uint64(in.Memory * float64(device.MemoryTotal)),
 		MemoryUsed:  0,
 	}
-
-	device.mut.Unlock()
 
 	return &pb.RegisterPodQuotaReply{}, nil
 }
