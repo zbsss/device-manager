@@ -30,10 +30,12 @@ type server struct {
 }
 
 type Pod struct {
-	Id          string
-	MemoryQuota float64
-	MemoryLimit uint64
-	MemoryUsed  uint64
+	Id                string
+	MemoryQuota       float64
+	MemoryLimit       uint64
+	MemoryUsed        uint64
+	TimeShareRequests float64
+	TimeShareLimit    float64
 }
 
 type Device struct {
@@ -44,6 +46,7 @@ type Device struct {
 	Pods        map[string]*Pod
 }
 
+// TODO: extract state storage to a separate package
 var devices = map[string]*Device{
 	"dev-1": {
 		mut:         &sync.Mutex{},
@@ -225,11 +228,17 @@ func (s *server) RegisterPodQuota(ctx context.Context, in *pb.RegisterPodQuotaRe
 	defer device.mut.Unlock()
 
 	device.Pods[in.Pod] = &Pod{
-		Id:          in.Pod,
-		MemoryQuota: in.Memory,
-		MemoryLimit: uint64(in.Memory * float64(device.MemoryTotal)),
-		MemoryUsed:  0,
+		Id:                in.Pod,
+		MemoryQuota:       in.Memory,
+		MemoryLimit:       uint64(in.Memory * float64(device.MemoryTotal)),
+		MemoryUsed:        0,
+		TimeShareRequests: in.Requests,
+		TimeShareLimit:    in.Limit,
 	}
+
+	GetScheduler(in.Device).UpdatePodQuota(&PodQuota{
+		PodId: in.Pod, Requests: in.Requests, Limit: in.Limit,
+	})
 
 	return &pb.RegisterPodQuotaReply{}, nil
 }

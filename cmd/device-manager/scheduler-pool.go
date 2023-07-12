@@ -10,6 +10,7 @@ func StartScheduler(deviceId string) {
 		queue:        []*TokenLeaseRequest{},
 		currentLease: nil,
 		leaseHistory: []*LeaseHistoryEntry{},
+		podQuota:     map[string]*PodQuota{},
 	}
 
 	schedulers[deviceId] = s

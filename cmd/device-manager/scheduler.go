@@ -52,13 +52,13 @@ func (s *scheduler) run() {
 			var selected *TokenLeaseRequest
 
 			if len(usedLessThanRequests) > 0 {
-				sortByQuotaUsed(usedLessThanRequests, usedQuotaPerPod)
+				sortAscByQuotaUsed(usedLessThanRequests, usedQuotaPerPod)
 				selected = usedLessThanRequests[0]
 			} else if len(usedLessThanLimit) > 0 {
-				sortByQuotaUsed(usedLessThanLimit, usedQuotaPerPod)
+				sortAscByQuotaUsed(usedLessThanLimit, usedQuotaPerPod)
 				selected = usedLessThanLimit[0]
 			} else {
-				sortByQuotaUsed(usedLimit, usedQuotaPerPod)
+				sortAscByQuotaUsed(usedLimit, usedQuotaPerPod)
 				selected = usedLimit[0]
 			}
 
@@ -131,7 +131,7 @@ func (s *scheduler) splitRequestsByQuotaUsed(usedQuotaPerPod map[string]float64)
 	return usedLessThanRequests, usedLessThanLimit, usedLimit
 }
 
-func sortByQuotaUsed(requests []*TokenLeaseRequest, usedQuotaPerPod map[string]float64) {
+func sortAscByQuotaUsed(requests []*TokenLeaseRequest, usedQuotaPerPod map[string]float64) {
 	sort.Slice(requests, func(i, j int) bool {
 		return usedQuotaPerPod[requests[i].PodId] < usedQuotaPerPod[requests[j].PodId]
 	})
@@ -165,4 +165,11 @@ func (s *scheduler) ReturnLease(lease *TokenLease) error {
 	s.currentLease = nil
 
 	return nil
+}
+
+func (s *scheduler) UpdatePodQuota(podQuota *PodQuota) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.podQuota[podQuota.PodId] = podQuota
 }
