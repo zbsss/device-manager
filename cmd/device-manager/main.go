@@ -16,10 +16,23 @@ import (
 var (
 	port          = flag.Int("port", 50051, "The server port")
 	tokenLifetime = flag.Int("token", 250, "Lifetime of token in milliseconds")
+	windowSize    = flag.Int("windowSize", 10000, "Window size in milliseconds")
 )
 
 type server struct {
 	pb.UnimplementedDeviceManagerServer
+}
+
+var podMemoryQuota = map[string]float64{
+	"pod-1": 1.0,
+}
+
+var podMemoryQuotaUsage = map[string]uint64{
+	"pod-1": 0,
+}
+
+var deviceTotalMemory = map[string]uint64{
+	"1": 1536,
 }
 
 var devicesMemoryUsage = map[string]uint64{}
@@ -45,7 +58,15 @@ func (s *server) ReturnToken(ctx context.Context, in *pb.ReturnTokenRequest) (*p
 func (s *server) GetMemoryQuota(ctx context.Context, in *pb.GetMemoryQuotaRequest) (*pb.GetMemoryQuotaReply, error) {
 	log.Printf("Received: GetMemoryQuota for device %s: %d", in.Device, in.Memory)
 
+	podId := "pod-1"
+
+	if deviceTotalMemory[in.Device] < devicesMemoryUsage[in.Device]+in.Memory ||
+		uint64(podMemoryQuota[podId]*float64(deviceTotalMemory[in.Device])) < podMemoryQuotaUsage[podId]+in.Memory {
+		return nil, fmt.Errorf("OOM: memory quota exceeded")
+	}
+
 	devicesMemoryUsage[in.Device] += in.Memory
+	podMemoryQuotaUsage[podId] += in.Memory
 
 	log.Println(devicesMemoryUsage[in.Device])
 
@@ -55,7 +76,10 @@ func (s *server) GetMemoryQuota(ctx context.Context, in *pb.GetMemoryQuotaReques
 func (s *server) ReturnMemoryQuota(ctx context.Context, in *pb.ReturnMemoryQuotaRequest) (*pb.ReturnMemoryQuotaReply, error) {
 	log.Printf("Received: ReturnMemoryQuota for device %s: %d", in.Device, in.Memory)
 
+	podId := "pod-1"
+
 	devicesMemoryUsage[in.Device] -= in.Memory
+	podMemoryQuotaUsage[podId] -= in.Memory
 
 	log.Println(devicesMemoryUsage[in.Device])
 
@@ -64,6 +88,16 @@ func (s *server) ReturnMemoryQuota(ctx context.Context, in *pb.ReturnMemoryQuota
 
 func main() {
 	flag.Parse()
+
+	go func() {
+		for {
+			log.Println("Memory usage per device: ", devicesMemoryUsage)
+			log.Println("Memory usage per pod: ", devicesMemoryUsage)
+
+			time.Sleep(10 * time.Second)
+		}
+	}()
+
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
