@@ -34,9 +34,12 @@ func createCommandQueue(context Context, device Device) (CommandQueue, error) {
 func (c CommandQueue) EnqueueNDRangeKernel(kernel Kernel, workDim uint32, globalWorkSize []uint64) error {
 	ctx := context.Background()
 	deviceId := "1"
-	Scheduler.GetToken(ctx, &pb.GetTokenRequest{
+	_, err := Scheduler.GetToken(ctx, &pb.GetTokenRequest{
 		Device: deviceId,
 	})
+	if err != nil {
+		return err
+	}
 
 	errInt := clError(C.clEnqueueNDRangeKernel(c.commandQueue,
 		kernel.kernel,
@@ -45,13 +48,16 @@ func (c CommandQueue) EnqueueNDRangeKernel(kernel Kernel, workDim uint32, global
 		(*C.size_t)(&globalWorkSize[0]),
 		nil, 0, nil, nil))
 
-	err := clErrorToError(errInt)
+	clErr := clErrorToError(errInt)
 
-	Scheduler.ReturnToken(ctx, &pb.ReturnTokenRequest{
+	_, err = Scheduler.ReturnToken(ctx, &pb.ReturnTokenRequest{
 		Device: deviceId,
 	})
+	if err != nil {
+		return err
+	}
 
-	return err
+	return clErr
 }
 
 func (c CommandQueue) EnqueueReadBuffer(buffer Buffer, blockingRead bool, dataPtr interface{}) error {

@@ -43,7 +43,10 @@ func (c Context) CreateProgramWithSource(programCode string) (Program, error) {
 func (c Context) CreateBuffer(memFlags []MemFlags, size uint64) (Buffer, error) {
 	ctx := context.Background()
 	deviceId := "1"
-	Scheduler.GetMemoryQuota(ctx, &pb.GetMemoryQuotaRequest{Device: deviceId, Memory: size})
+	_, err := Scheduler.GetMemoryQuota(ctx, &pb.GetMemoryQuotaRequest{Device: deviceId, Memory: size})
+	if err != nil {
+		return Buffer{}, err
+	}
 
 	return createBuffer(c, memFlags, size)
 }
