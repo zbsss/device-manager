@@ -95,11 +95,24 @@ func (s *scheduler) tryScheduleLease() {
 	}
 }
 
+func (s *scheduler) areOtherPodsInQueueNoLock(podId string) bool {
+	for _, req := range s.queue {
+		if req.PodId != podId {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (s *scheduler) tryTerminateExpiredLease() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	if s.currentLease != nil && time.Now().After(s.currentLease.ExpiresAt) {
+	// only evict Pod if there are other Pods waiting in the queue
+	if s.currentLease != nil &&
+		time.Now().After(s.currentLease.ExpiresAt) &&
+		s.areOtherPodsInQueueNoLock(s.currentLease.PodId) {
 		log.Printf("Lease for pod %s has expired\n", s.currentLease.PodId)
 
 		err := EvictPod(s.currentLease.PodId, "default")
