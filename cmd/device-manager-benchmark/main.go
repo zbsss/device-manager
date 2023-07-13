@@ -16,8 +16,12 @@ import (
 func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId string) {
 	defer wg.Done()
 
-	min := 100
-	max := 300
+	workTimeMin := 50
+	workTimeMax := 300
+
+	// inbetweenTimeMin := 50
+	// inbetweenTimeMax := 1000
+
 	ctx := context.Background()
 
 	logPrefix := fmt.Sprintf("[%s/%s]", deviceId, clientId)
@@ -27,7 +31,7 @@ func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId 
 		_, err := grpc.GetMemoryQuota(ctx, &pb.GetMemoryQuotaRequest{
 			Device: deviceId,
 			Pod:    clientId,
-			Memory: 512,
+			Memory: 100,
 		})
 		if err != nil {
 			log.Fatalf("%s could not get memory quota: %v", logPrefix, err)
@@ -45,7 +49,7 @@ func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId 
 		log.Printf("%s Got token: %v", logPrefix, token.ExpiresAt)
 
 		// Simulate work
-		time.Sleep(time.Duration(rand.Intn(max-min+1)+min) * time.Millisecond)
+		time.Sleep(time.Duration(rand.Intn(workTimeMax-workTimeMin+1)+workTimeMin) * time.Millisecond)
 
 		log.Printf("%s Returning token", logPrefix)
 		_, err = grpc.ReturnToken(ctx, &pb.ReturnTokenRequest{
@@ -60,11 +64,13 @@ func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId 
 		_, err = grpc.ReturnMemoryQuota(ctx, &pb.ReturnMemoryQuotaRequest{
 			Device: deviceId,
 			Pod:    clientId,
-			Memory: 512,
+			Memory: 100,
 		})
 		if err != nil {
 			log.Fatalf("%s could not return memory quota: %v", logPrefix, err)
 		}
+
+		// time.Sleep(time.Duration(rand.Intn(inbetweenTimeMax-inbetweenTimeMin+1)+inbetweenTimeMin) * time.Millisecond)
 	}
 }
 
@@ -81,14 +87,24 @@ var clients = []*pb.RegisterPodQuotaRequest{
 		Pod:    "client-0",
 
 		Requests: 0.5,
+		Limit:    0.5,
 		Memory:   0.5,
 	},
 	{
 		Device: "dev-0",
 		Pod:    "client-1",
 
-		Requests: 0.5,
-		Memory:   0.5,
+		Requests: 0.25,
+		Limit:    0.5,
+		Memory:   0.25,
+	},
+	{
+		Device: "dev-0",
+		Pod:    "client-2",
+
+		Requests: 0.25,
+		Limit:    0.5,
+		Memory:   0.25,
 	},
 }
 
@@ -127,7 +143,7 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 3; i++ {
 		log.Println("Starting worker: ", i)
 
 		wg.Add(1)

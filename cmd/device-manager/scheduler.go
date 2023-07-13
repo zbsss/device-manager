@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"sort"
 	"sync"
 	"time"
@@ -19,9 +21,9 @@ type TokenLeaseRequest struct {
 }
 
 type LeaseHistoryEntry struct {
-	PodId      string
-	LeasedAt   time.Time
-	ReturnedAt time.Time
+	PodId      string    `json:"podId"`
+	LeasedAt   time.Time `json:"leasedAt"`
+	ReturnedAt time.Time `json:"returnedAt"`
 }
 
 type PodQuota struct {
@@ -31,21 +33,22 @@ type PodQuota struct {
 }
 
 type scheduler struct {
-	lock         sync.Mutex
-	queue        []*TokenLeaseRequest
-	currentLease *TokenLease
-	leaseHistory []*LeaseHistoryEntry
-	podQuota     map[string]*PodQuota
+	lock                sync.Mutex
+	queue               []*TokenLeaseRequest
+	currentLease        *TokenLease
+	leaseHistory        []*LeaseHistoryEntry
+	leaseHistoryLogFile string
+	podQuota            map[string]*PodQuota
 }
 
 func (s *scheduler) run() {
 	for {
-		s.tryLease()
+		s.tryScheduleLease()
 		s.tryTerminateExpiredLease()
 	}
 }
 
-func (s *scheduler) tryLease() {
+func (s *scheduler) tryScheduleLease() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -170,15 +173,41 @@ func (s *scheduler) ReturnLease(lease *TokenLease) error {
 		return fmt.Errorf("pod %s does not have a lease", lease.PodId)
 	}
 
-	s.leaseHistory = append([]*LeaseHistoryEntry{{
+	newHistEntry := LeaseHistoryEntry{
 		PodId:      lease.PodId,
 		LeasedAt:   s.currentLease.ExpiresAt.Add(-tokenDuration),
 		ReturnedAt: time.Now(),
-	}}, s.leaseHistory...)
+	}
+
+	s.leaseHistory = append([]*LeaseHistoryEntry{&newHistEntry}, s.leaseHistory...)
 
 	s.currentLease = nil
 
+	go s.saveLeaseHistoryEntry(newHistEntry)
+
 	return nil
+}
+
+func (s *scheduler) saveLeaseHistoryEntry(entry LeaseHistoryEntry) {
+	file, err := os.OpenFile(s.leaseHistoryLogFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		log.Printf("Failed to open file: %s\n", err)
+	}
+	defer file.Close()
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		log.Printf("Failed to marshal entry: %s\n", err)
+	}
+
+	_, err = file.Write(data)
+	if err != nil {
+		log.Printf("Failed to write entry: %s\n", err)
+	}
+
+	_, _ = file.WriteString("\n")
+
+	log.Printf("Saved entry: %s\n", data)
 }
 
 func (s *scheduler) UpdatePodQuota(podQuota *PodQuota) {
