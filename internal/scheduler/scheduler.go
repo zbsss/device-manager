@@ -1,4 +1,4 @@
-package main
+package scheduler
 
 import (
 	"encoding/json"
@@ -11,28 +11,6 @@ import (
 	"time"
 )
 
-type TokenLease struct {
-	PodId     string
-	ExpiresAt time.Time
-}
-
-type TokenLeaseRequest struct {
-	PodId    string
-	Response chan *TokenLease
-}
-
-type LeaseHistoryEntry struct {
-	PodId      string    `json:"podId"`
-	LeasedAt   time.Time `json:"leasedAt"`
-	ReturnedAt time.Time `json:"returnedAt"`
-}
-
-type PodQuota struct {
-	PodId    string
-	Requests float64
-	Limit    float64
-}
-
 type scheduler struct {
 	lock                sync.Mutex
 	queue               []*TokenLeaseRequest
@@ -40,6 +18,25 @@ type scheduler struct {
 	leaseHistory        []*LeaseHistoryEntry
 	leaseHistoryLogFile string
 	podQuota            map[string]*PodQuota
+	windowDuration      time.Duration
+	evictionPeriod      time.Duration
+}
+
+func startScheduler(deviceId string, windowDuration, evictionPeriod time.Duration) Scheduler {
+	s := &scheduler{
+		lock:         sync.Mutex{},
+		queue:        []*TokenLeaseRequest{},
+		currentLease: nil,
+		leaseHistory: []*LeaseHistoryEntry{},
+		// TODO: when running in Pod we need some sidecar to upload logs to S3?
+		leaseHistoryLogFile: fmt.Sprintf("data/data-%s.json", time.Now().Format("2006-01-02-15-04-05")),
+		podQuota:            map[string]*PodQuota{},
+		windowDuration:      windowDuration,
+		evictionPeriod:      evictionPeriod,
+	}
+
+	go s.run()
+	return s
 }
 
 func (s *scheduler) run() {
@@ -85,7 +82,7 @@ func (s *scheduler) tryScheduleLease() {
 
 		s.currentLease = &TokenLease{
 			PodId:     selected.PodId,
-			ExpiresAt: time.Now().Add(tokenDuration),
+			ExpiresAt: time.Now().Add(s.evictionPeriod),
 		}
 
 		selected.Response <- s.currentLease
@@ -115,7 +112,7 @@ func (s *scheduler) tryTerminateExpiredLease() {
 		s.areOtherPodsInQueueNoLock(s.currentLease.PodId) {
 		log.Printf("Lease for pod %s has expired\n", s.currentLease.PodId)
 
-		err := EvictPod(s.currentLease.PodId, "default")
+		err := evictPod(s.currentLease.PodId, "default")
 		if err != nil {
 			log.Printf("Failed to evict pod %s: %v\n", s.currentLease.PodId, err)
 			return
@@ -133,7 +130,7 @@ func (s *scheduler) calculateUsedQuotaPerPod() map[string]float64 {
 	hist := []*LeaseHistoryEntry{}
 	leaseDurationPerPod := map[string]time.Duration{}
 
-	windowStart := time.Now().Add(-windowDuration)
+	windowStart := time.Now().Add(-s.windowDuration)
 
 	for _, entry := range s.leaseHistory {
 		if entry.ReturnedAt.After(windowStart) {
@@ -150,23 +147,16 @@ func (s *scheduler) calculateUsedQuotaPerPod() map[string]float64 {
 
 	usedQuotaPerPod := map[string]float64{}
 	for pod, duration := range leaseDurationPerPod {
-		usedQuotaPerPod[pod] = duration.Seconds() / windowDuration.Seconds()
+		usedQuotaPerPod[pod] = duration.Seconds() / s.windowDuration.Seconds()
 	}
 
 	return usedQuotaPerPod
 }
 
-func (s *scheduler) EnqueueLeaseRequest(req *TokenLeaseRequest) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	s.queue = append(s.queue, req)
-}
-
 func (s *scheduler) cancelLeaseNoLock() {
 	newHistEntry := LeaseHistoryEntry{
 		PodId:      s.currentLease.PodId,
-		LeasedAt:   s.currentLease.ExpiresAt.Add(-tokenDuration),
+		LeasedAt:   s.currentLease.ExpiresAt.Add(-s.evictionPeriod),
 		ReturnedAt: time.Now(),
 	}
 
@@ -175,23 +165,6 @@ func (s *scheduler) cancelLeaseNoLock() {
 	s.currentLease = nil
 
 	go s.saveLeaseHistoryEntry(newHistEntry)
-}
-
-func (s *scheduler) ReturnLease(lease *TokenLease) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	if s.currentLease == nil {
-		return fmt.Errorf("no lease to return")
-	}
-
-	if s.currentLease.PodId != lease.PodId {
-		return fmt.Errorf("pod %s does not have a lease", lease.PodId)
-	}
-
-	s.cancelLeaseNoLock()
-
-	return nil
 }
 
 func (s *scheduler) saveLeaseHistoryEntry(entry LeaseHistoryEntry) {
@@ -206,19 +179,14 @@ func (s *scheduler) saveLeaseHistoryEntry(entry LeaseHistoryEntry) {
 		log.Printf("Failed to marshal entry: %s\n", err)
 	}
 
+	// TODO: refactor
 	_, err = file.Write(data)
 	if err != nil {
 		log.Printf("Failed to write entry: %s\n", err)
 	}
 
+	// TODO: refactor
 	_, _ = file.WriteString("\n")
 
 	log.Printf("Saved entry: %s\n", data)
-}
-
-func (s *scheduler) UpdatePodQuota(podQuota *PodQuota) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	s.podQuota[podQuota.PodId] = podQuota
 }

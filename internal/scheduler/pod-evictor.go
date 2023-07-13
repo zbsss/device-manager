@@ -1,4 +1,4 @@
-package main
+package scheduler
 
 import (
 	"context"
@@ -10,11 +10,12 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func EvictPod(podName string, namespace string) error {
+func evictPod(podName string, namespace string) error {
 	// creates the in-cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		return fmt.Errorf("failed to get cluster config: %v", err)
+		// skip eviction if not running in a k8s cluster
+		return nil
 	}
 
 	// creates the clientset
@@ -32,7 +33,8 @@ func EvictPod(podName string, namespace string) error {
 	}
 
 	// evict pod
-	if err := clientset.PolicyV1().Evictions(eviction.Namespace).Evict(context.Background(), eviction); err != nil {
+	err = clientset.PolicyV1().Evictions(eviction.Namespace).Evict(context.Background(), eviction)
+	if err != nil {
 		return fmt.Errorf("failed to evict pod: %w", err)
 	}
 

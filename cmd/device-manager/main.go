@@ -1,280 +1,31 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net"
-	"strings"
-	"sync"
 	"time"
 
 	pb "github.com/zbsss/device-manager/generated"
+	"github.com/zbsss/device-manager/internal/devicemanager"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
 var (
 	port          = flag.Int("port", 50051, "The server port")
-	tokenLifetime = flag.Int("token-life", 10, "Lifetime of token in milliseconds")
+	tokenLifetime = flag.Int("token-life", 200, "Lifetime of token in milliseconds")
 	windowSize    = flag.Int("windowSize", 10000, "Window size in milliseconds")
-	verbose       = flag.Bool("verbose", true, "Window size in milliseconds")
 )
 
 var windowDuration = time.Duration(*windowSize) * time.Millisecond
 var tokenDuration = time.Duration(*tokenLifetime) * time.Millisecond
 
-type server struct {
-	pb.UnimplementedDeviceManagerServer
-}
-
-type Pod struct {
-	Id                string
-	MemoryQuota       float64
-	MemoryLimit       uint64
-	MemoryUsed        uint64
-	TimeShareRequests float64
-	TimeShareLimit    float64
-}
-
-type Device struct {
-	mut         *sync.Mutex
-	Id          string
-	MemoryTotal uint64
-	MemoryUsed  uint64
-	Pods        map[string]*Pod
-}
-
-// TODO: extract state storage to a separate package
-var devices = map[string]*Device{
-	"dev-1": {
-		mut:         &sync.Mutex{},
-		Id:          "dev-1",
-		MemoryTotal: 4096,
-		MemoryUsed:  0,
-		Pods: map[string]*Pod{
-			"device": {
-				Id:          "device",
-				MemoryQuota: 0.5,
-				MemoryLimit: 2048,
-				// TODO: when pod is killed the memory is not returned.
-				// Need to add a expiration time after which the memeory is returned automatically
-				MemoryUsed: 0,
-			},
-		},
-	},
-}
-
-func (s *server) GetToken(ctx context.Context, in *pb.GetTokenRequest) (*pb.GetTokenReply, error) {
-	log.Printf("Received: GetToken for device %s from pod %s", in.Device, in.Pod)
-
-	if in.Device == "" {
-		return nil, fmt.Errorf("device not specified")
-	}
-	if in.Pod == "" {
-		return nil, fmt.Errorf("pod not specified")
-	}
-
-	req := &TokenLeaseRequest{
-		PodId:    in.Pod,
-		Response: make(chan *TokenLease),
-	}
-
-	GetScheduler(in.Device).EnqueueLeaseRequest(req)
-	token := <-req.Response
-
-	log.Printf("Sending token")
-
-	return &pb.GetTokenReply{ExpiresAt: token.ExpiresAt.Unix()}, nil
-}
-
-func (s *server) ReturnToken(ctx context.Context, in *pb.ReturnTokenRequest) (*pb.ReturnTokenReply, error) {
-	log.Printf("Received: ReturnToken")
-
-	if in.Device == "" {
-		return nil, fmt.Errorf("device not specified")
-	}
-	if in.Pod == "" {
-		return nil, fmt.Errorf("pod not specified")
-	}
-
-	err := GetScheduler(in.Device).ReturnLease(&TokenLease{PodId: in.Pod})
-
-	if err != nil {
-		log.Printf("Error returning token: %s", err)
-	} else {
-		log.Printf("Token returned")
-	}
-
-	return &pb.ReturnTokenReply{}, nil
-}
-
-func (s *server) GetMemoryQuota(ctx context.Context, in *pb.GetMemoryQuotaRequest) (*pb.GetMemoryQuotaReply, error) {
-	log.Printf("Received: GetMemoryQuota for device %s: %d", in.Device, in.Memory)
-
-	if in.Device == "" {
-		return nil, fmt.Errorf("device not specified")
-	}
-	if in.Pod == "" {
-		return nil, fmt.Errorf("pod not specified")
-	}
-	if in.Memory <= 0 {
-		return nil, fmt.Errorf("memory value is invalid")
-	}
-
-	var device *Device
-	var pod *Pod
-	var ok bool
-
-	if device, ok = devices[in.Device]; !ok {
-		return nil, fmt.Errorf("device %s not registered", in.Device)
-	}
-
-	if pod, ok = device.Pods[in.Pod]; !ok {
-		return nil, fmt.Errorf("pod %s not registered", in.Pod)
-	}
-
-	device.mut.Lock()
-	defer device.mut.Unlock()
-
-	if device.MemoryUsed+in.Memory > device.MemoryTotal || pod.MemoryUsed+in.Memory > pod.MemoryLimit {
-		return nil, fmt.Errorf("OOM: memory limit exceeded")
-	}
-
-	device.MemoryUsed += in.Memory
-	pod.MemoryUsed += in.Memory
-
-	return &pb.GetMemoryQuotaReply{}, nil
-}
-
-func (s *server) ReturnMemoryQuota(ctx context.Context, in *pb.ReturnMemoryQuotaRequest) (*pb.ReturnMemoryQuotaReply, error) {
-	log.Printf("Received: ReturnMemoryQuota for device %s: %d", in.Device, in.Memory)
-
-	if in.Device == "" {
-		return nil, fmt.Errorf("device not specified")
-	}
-	if in.Pod == "" {
-		return nil, fmt.Errorf("pod not specified")
-	}
-	if in.Memory <= 0 {
-		return nil, fmt.Errorf("memory value is invalid")
-	}
-
-	var device *Device
-	var pod *Pod
-	var ok bool
-
-	if device, ok = devices[in.Device]; !ok {
-		return nil, fmt.Errorf("device %s not registered", in.Device)
-	}
-
-	if pod, ok = device.Pods[in.Pod]; !ok {
-		return nil, fmt.Errorf("pod %s not registered", in.Pod)
-	}
-
-	device.mut.Lock()
-
-	device.MemoryUsed -= in.Memory
-	pod.MemoryUsed -= in.Memory
-
-	device.mut.Unlock()
-
-	log.Println(device.MemoryUsed)
-
-	return &pb.ReturnMemoryQuotaReply{}, nil
-}
-
-func (s *server) RegisterDevice(ctx context.Context, in *pb.RegisterDeviceRequest) (*pb.RegisterDeviceReply, error) {
-	log.Printf("Received: RegisterDevice for device %s", in.Device)
-
-	if _, ok := devices[in.Device]; ok {
-		return nil, fmt.Errorf("device already registered")
-	}
-
-	devices[in.Device] = &Device{
-		mut:         &sync.Mutex{},
-		Id:          in.Device,
-		MemoryTotal: in.Memory,
-		MemoryUsed:  0,
-		Pods:        map[string]*Pod{},
-	}
-
-	StartScheduler(in.Device)
-
-	return &pb.RegisterDeviceReply{}, nil
-}
-
-func (s *server) RegisterPodQuota(ctx context.Context, in *pb.RegisterPodQuotaRequest) (*pb.RegisterPodQuotaReply, error) {
-	log.Printf("Received: RegisterPod for device %s and pod %s", in.Device, in.Pod)
-
-	if in.Device == "" {
-		return nil, fmt.Errorf("device not specified")
-	}
-	if in.Pod == "" {
-		return nil, fmt.Errorf("pod not specified")
-	}
-
-	var device *Device
-	var ok bool
-
-	if device, ok = devices[in.Device]; !ok {
-		return nil, fmt.Errorf("device %s not registered", in.Device)
-	}
-
-	device.mut.Lock()
-	defer device.mut.Unlock()
-
-	// TODO: validate memory and requests
-	if in.Limit == 0 {
-		in.Limit = in.Requests
-	}
-
-	device.Pods[in.Pod] = &Pod{
-		Id:                in.Pod,
-		MemoryQuota:       in.Memory,
-		MemoryLimit:       uint64(in.Memory * float64(device.MemoryTotal)),
-		MemoryUsed:        0,
-		TimeShareRequests: in.Requests,
-		TimeShareLimit:    in.Limit,
-	}
-
-	GetScheduler(in.Device).UpdatePodQuota(&PodQuota{
-		PodId: in.Pod, Requests: in.Requests, Limit: in.Limit,
-	})
-
-	return &pb.RegisterPodQuotaReply{}, nil
-}
-
-func stateLoggerDaemon() {
-	for {
-		var sb strings.Builder
-		sb.WriteString("\n===Current state===")
-		for _, device := range devices {
-			sb.WriteString(fmt.Sprintf("\nDevice %s: %d/%d", device.Id, device.MemoryUsed, device.MemoryTotal))
-
-			for _, pod := range device.Pods {
-				sb.WriteString(fmt.Sprintf("\n\tPod %s: %d/%d", pod.Id, pod.MemoryUsed, pod.MemoryLimit))
-			}
-		}
-		sb.WriteString("\n===================\n")
-		log.Println(sb.String())
-
-		time.Sleep(10 * time.Second)
-	}
-}
-
 func main() {
 	flag.Parse()
 
-	if *verbose {
-		go stateLoggerDaemon()
-	}
-
-	StartScheduler("dev-1")
-	GetScheduler("dev-1").UpdatePodQuota(&PodQuota{
-		PodId: "device", Requests: 0.5, Limit: 1.0,
-	})
+	dm := devicemanager.NewTestDeviceManager(windowDuration, tokenDuration)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *port))
 	if err != nil {
@@ -283,7 +34,7 @@ func main() {
 
 	s := grpc.NewServer()
 	reflection.Register(s)
-	pb.RegisterDeviceManagerServer(s, &server{})
+	pb.RegisterDeviceManagerServer(s, dm)
 
 	log.Printf("server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {

@@ -14,6 +14,40 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+var devices = []*pb.RegisterDeviceRequest{
+	{
+		Device: "dev-0",
+		Memory: 1024,
+	},
+}
+
+var clients = []*pb.RegisterPodQuotaRequest{
+	{
+		Device: "dev-0",
+		Pod:    "client-0",
+
+		Requests: 0.5,
+		Limit:    1.0,
+		Memory:   0.5,
+	},
+	{
+		Device: "dev-0",
+		Pod:    "client-1",
+
+		Requests: 0.25,
+		Limit:    0.25,
+		Memory:   0.25,
+	},
+	// {
+	// 	Device: "dev-0",
+	// 	Pod:    "client-2",
+
+	// 	Requests: 0.25,
+	// 	Limit:    0.5,
+	// 	Memory:   0.25,
+	// },
+}
+
 func waitRandom(min, max int) {
 	time.Sleep(time.Duration(rand.Intn(max-min+1)+min) * time.Millisecond)
 }
@@ -22,10 +56,10 @@ func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId 
 	defer wg.Done()
 
 	workTimeMin := 50
-	workTimeMax := 300
+	workTimeMax := 200
 
-	inbetweenTimeMin := 50
-	inbetweenTimeMax := 100
+	// inbetweenTimeMin := 50
+	// inbetweenTimeMax := 100
 
 	ctx := context.Background()
 
@@ -76,42 +110,12 @@ func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId 
 			infoLogger.Fatalf("could not return memory quota: %v", err)
 		}
 
-		waitRandom(inbetweenTimeMin, inbetweenTimeMax)
+		if clientId == "client-1" {
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		// waitRandom(inbetweenTimeMin, inbetweenTimeMax)
 	}
-}
-
-var devices = []*pb.RegisterDeviceRequest{
-	{
-		Device: "dev-0",
-		Memory: 1024,
-	},
-}
-
-var clients = []*pb.RegisterPodQuotaRequest{
-	{
-		Device: "dev-0",
-		Pod:    "client-0",
-
-		Requests: 0.5,
-		Limit:    0.5,
-		Memory:   0.5,
-	},
-	{
-		Device: "dev-0",
-		Pod:    "client-1",
-
-		Requests: 0.25,
-		Limit:    0.25,
-		Memory:   0.25,
-	},
-	{
-		Device: "dev-0",
-		Pod:    "client-2",
-
-		Requests: 0.25,
-		Limit:    0.5,
-		Memory:   0.25,
-	},
 }
 
 func setupDeviceManager(grpc pb.DeviceManagerClient) {
