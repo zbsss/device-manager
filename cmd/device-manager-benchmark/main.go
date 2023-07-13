@@ -19,8 +19,8 @@ func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId 
 	workTimeMin := 50
 	workTimeMax := 300
 
-	// inbetweenTimeMin := 50
-	// inbetweenTimeMax := 1000
+	inbetweenTimeMin := 50
+	inbetweenTimeMax := 100
 
 	ctx := context.Background()
 
@@ -70,7 +70,7 @@ func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId 
 			log.Fatalf("%s could not return memory quota: %v", logPrefix, err)
 		}
 
-		// time.Sleep(time.Duration(rand.Intn(inbetweenTimeMax-inbetweenTimeMin+1)+inbetweenTimeMin) * time.Millisecond)
+		time.Sleep(time.Duration(rand.Intn(inbetweenTimeMax-inbetweenTimeMin+1)+inbetweenTimeMin) * time.Millisecond)
 	}
 }
 
@@ -95,7 +95,7 @@ var clients = []*pb.RegisterPodQuotaRequest{
 		Pod:    "client-1",
 
 		Requests: 0.25,
-		Limit:    0.5,
+		Limit:    0.25,
 		Memory:   0.25,
 	},
 	{
@@ -143,7 +143,7 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < len(clients); i++ {
 		log.Println("Starting worker: ", i)
 
 		wg.Add(1)

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"sort"
 	"sync"
@@ -56,21 +57,30 @@ func (s *scheduler) tryScheduleLease() {
 		// calculate used quota for each pod in current time window
 		usedQuotaPerPod := s.calculateUsedQuotaPerPod()
 
-		// split requests into 3 groups based on used quota
-		usedLessThanRequests, usedLessThanLimit, usedLimit := s.splitRequestsByQuotaUsed(usedQuotaPerPod)
+		for podId, podQuota := range s.podQuota {
+			log.Printf("Pod %s: used quota %f, limit %f\n", podId, usedQuotaPerPod[podId], podQuota.Limit)
+		}
 
-		// order by used quota
-		var selected *TokenLeaseRequest
+		// order by used/requested quota
+		sort.Slice(s.queue, func(i, j int) bool {
+			iUsed := usedQuotaPerPod[s.queue[i].PodId]
+			jUsed := usedQuotaPerPod[s.queue[j].PodId]
+			iQuota := iUsed / s.podQuota[s.queue[i].PodId].Requests
+			jQuota := jUsed / s.podQuota[s.queue[j].PodId].Requests
+			if iUsed >= s.podQuota[s.queue[i].PodId].Limit {
+				iQuota = math.MaxFloat64
+			}
+			if jUsed >= s.podQuota[s.queue[j].PodId].Limit {
+				jQuota = math.MaxFloat64
+			}
+			return iQuota < jQuota
+		})
 
-		if len(usedLessThanRequests) > 0 {
-			sortAscByQuotaUsed(usedLessThanRequests, usedQuotaPerPod)
-			selected = usedLessThanRequests[0]
-		} else if len(usedLessThanLimit) > 0 {
-			sortAscByQuotaUsed(usedLessThanLimit, usedQuotaPerPod)
-			selected = usedLessThanLimit[0]
-		} else {
-			sortAscByQuotaUsed(usedLimit, usedQuotaPerPod)
-			selected = usedLimit[0]
+		selected := s.queue[0]
+
+		if usedQuotaPerPod[selected.PodId] >= s.podQuota[selected.PodId].Limit {
+			log.Printf("Pod %s has reached its limit\n", selected.PodId)
+			return
 		}
 
 		s.currentLease = &TokenLease{
@@ -81,12 +91,7 @@ func (s *scheduler) tryScheduleLease() {
 		selected.Response <- s.currentLease
 
 		// remove `selected` from s.queue
-		for i, v := range s.queue {
-			if v == selected {
-				s.queue = append(s.queue[:i], s.queue[i+1:]...)
-				break
-			}
-		}
+		s.queue = s.queue[1:]
 	}
 }
 
@@ -110,7 +115,7 @@ func (s *scheduler) calculateUsedQuotaPerPod() map[string]float64 {
 	windowStart := time.Now().Add(-windowDuration)
 
 	for _, entry := range s.leaseHistory {
-		if (entry.LeasedAt.Before(windowStart) && entry.ReturnedAt.After(windowStart)) || entry.LeasedAt.After(windowStart) {
+		if entry.ReturnedAt.After(windowStart) {
 			if entry.LeasedAt.Before(windowStart) {
 				entry.LeasedAt = windowStart
 			}
@@ -128,30 +133,6 @@ func (s *scheduler) calculateUsedQuotaPerPod() map[string]float64 {
 	}
 
 	return usedQuotaPerPod
-}
-
-func (s *scheduler) splitRequestsByQuotaUsed(usedQuotaPerPod map[string]float64) ([]*TokenLeaseRequest, []*TokenLeaseRequest, []*TokenLeaseRequest) {
-	usedLimit := []*TokenLeaseRequest{}
-	usedLessThanRequests := []*TokenLeaseRequest{}
-	usedLessThanLimit := []*TokenLeaseRequest{}
-
-	for _, pod := range s.queue {
-		if usedQuotaPerPod[pod.PodId] < s.podQuota[pod.PodId].Requests {
-			usedLessThanRequests = append(usedLessThanRequests, pod)
-		} else if usedQuotaPerPod[pod.PodId] < s.podQuota[pod.PodId].Limit {
-			usedLessThanLimit = append(usedLessThanLimit, pod)
-		} else {
-			usedLimit = append(usedLimit, pod)
-		}
-	}
-
-	return usedLessThanRequests, usedLessThanLimit, usedLimit
-}
-
-func sortAscByQuotaUsed(requests []*TokenLeaseRequest, usedQuotaPerPod map[string]float64) {
-	sort.Slice(requests, func(i, j int) bool {
-		return usedQuotaPerPod[requests[i].PodId] < usedQuotaPerPod[requests[j].PodId]
-	})
 }
 
 func (s *scheduler) EnqueueLeaseRequest(req *TokenLeaseRequest) {

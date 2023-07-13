@@ -28,3 +28,8 @@ kubectl port-forward svc/device-manager-service 50051:80
 grpcurl -plaintext 127.0.0.1:50051 list
 grpcurl -plaintext 127.0.0.1:50051 device_manager.DeviceManager/GetToken
 ```
+
+
+```
+python3 analysis/time_utilization.py data/data-2023-07-13-09-29-09.json
+```
