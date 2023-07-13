@@ -103,6 +103,8 @@ func (s *server) ReturnToken(ctx context.Context, in *pb.ReturnTokenRequest) (*p
 
 	if err != nil {
 		log.Printf("Error returning token: %s", err)
+	} else {
+		log.Printf("Token returned")
 	}
 
 	return &pb.ReturnTokenReply{}, nil
@@ -226,6 +228,11 @@ func (s *server) RegisterPodQuota(ctx context.Context, in *pb.RegisterPodQuotaRe
 
 	device.mut.Lock()
 	defer device.mut.Unlock()
+
+	// TODO: validate memory and requests
+	if in.Limit == 0 {
+		in.Limit = in.Requests
+	}
 
 	device.Pods[in.Pod] = &Pod{
 		Id:                in.Pod,

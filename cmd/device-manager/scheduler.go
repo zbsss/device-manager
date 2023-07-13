@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"sort"
 	"sync"
 	"time"
@@ -39,50 +40,63 @@ type scheduler struct {
 
 func (s *scheduler) run() {
 	for {
-		if s.currentLease == nil && len(s.queue) > 0 {
-			s.lock.Lock()
+		s.tryLease()
+		s.tryTerminateExpiredLease()
+	}
+}
 
-			// calculate used quota for each pod in current time window
-			usedQuotaPerPod := s.calculateUsedQuotaPerPod()
+func (s *scheduler) tryLease() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
-			// split requests into 3 groups based on used quota
-			usedLessThanRequests, usedLessThanLimit, usedLimit := s.splitRequestsByQuotaUsed(usedQuotaPerPod)
+	if s.currentLease == nil && len(s.queue) > 0 {
+		// calculate used quota for each pod in current time window
+		usedQuotaPerPod := s.calculateUsedQuotaPerPod()
 
-			// order by used quota
-			var selected *TokenLeaseRequest
+		// split requests into 3 groups based on used quota
+		usedLessThanRequests, usedLessThanLimit, usedLimit := s.splitRequestsByQuotaUsed(usedQuotaPerPod)
 
-			if len(usedLessThanRequests) > 0 {
-				sortAscByQuotaUsed(usedLessThanRequests, usedQuotaPerPod)
-				selected = usedLessThanRequests[0]
-			} else if len(usedLessThanLimit) > 0 {
-				sortAscByQuotaUsed(usedLessThanLimit, usedQuotaPerPod)
-				selected = usedLessThanLimit[0]
-			} else {
-				sortAscByQuotaUsed(usedLimit, usedQuotaPerPod)
-				selected = usedLimit[0]
-			}
+		// order by used quota
+		var selected *TokenLeaseRequest
 
-			s.currentLease = &TokenLease{
-				PodId:     selected.PodId,
-				ExpiresAt: time.Now().Add(tokenDuration),
-			}
-
-			selected.Response <- s.currentLease
-
-			// remove `selected` from s.queue
-			for i, v := range s.queue {
-				if v == selected {
-					s.queue = append(s.queue[:i], s.queue[i+1:]...)
-					break
-				}
-			}
-
-			s.lock.Unlock()
+		if len(usedLessThanRequests) > 0 {
+			sortAscByQuotaUsed(usedLessThanRequests, usedQuotaPerPod)
+			selected = usedLessThanRequests[0]
+		} else if len(usedLessThanLimit) > 0 {
+			sortAscByQuotaUsed(usedLessThanLimit, usedQuotaPerPod)
+			selected = usedLessThanLimit[0]
+		} else {
+			sortAscByQuotaUsed(usedLimit, usedQuotaPerPod)
+			selected = usedLimit[0]
 		}
 
-		if s.currentLease != nil && time.Now().After(s.currentLease.ExpiresAt) {
-			s.ReturnLease(s.currentLease)
+		s.currentLease = &TokenLease{
+			PodId:     selected.PodId,
+			ExpiresAt: time.Now().Add(tokenDuration),
 		}
+
+		selected.Response <- s.currentLease
+
+		// remove `selected` from s.queue
+		for i, v := range s.queue {
+			if v == selected {
+				s.queue = append(s.queue[:i], s.queue[i+1:]...)
+				break
+			}
+		}
+	}
+}
+
+func (s *scheduler) tryTerminateExpiredLease() {
+	s.lock.Lock()
+
+	if s.currentLease != nil && time.Now().After(s.currentLease.ExpiresAt) {
+		log.Printf("Lease for pod %s has expired\n", s.currentLease.PodId)
+
+		s.lock.Unlock()
+		s.ReturnLease(s.currentLease)
+	} else {
+		s.lock.Unlock()
 	}
 }
 
