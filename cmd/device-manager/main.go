@@ -17,7 +17,7 @@ import (
 
 var (
 	port          = flag.Int("port", 50051, "The server port")
-	tokenLifetime = flag.Int("token-life", 250, "Lifetime of token in milliseconds")
+	tokenLifetime = flag.Int("token-life", 10, "Lifetime of token in milliseconds")
 	windowSize    = flag.Int("windowSize", 10000, "Window size in milliseconds")
 	verbose       = flag.Bool("verbose", true, "Window size in milliseconds")
 )
@@ -51,13 +51,13 @@ var devices = map[string]*Device{
 	"dev-1": {
 		mut:         &sync.Mutex{},
 		Id:          "dev-1",
-		MemoryTotal: 1000000000,
+		MemoryTotal: 4096,
 		MemoryUsed:  0,
 		Pods: map[string]*Pod{
-			"pod-1": {
-				Id:          "pod-1",
+			"device": {
+				Id:          "device",
 				MemoryQuota: 0.5,
-				MemoryLimit: 500000000,
+				MemoryLimit: 2048,
 				// TODO: when pod is killed the memory is not returned.
 				// Need to add a expiration time after which the memeory is returned automatically
 				MemoryUsed: 0,
@@ -67,7 +67,7 @@ var devices = map[string]*Device{
 }
 
 func (s *server) GetToken(ctx context.Context, in *pb.GetTokenRequest) (*pb.GetTokenReply, error) {
-	log.Printf("Received: GetToken for device %s", in.Device)
+	log.Printf("Received: GetToken for device %s from pod %s", in.Device, in.Pod)
 
 	if in.Device == "" {
 		return nil, fmt.Errorf("device not specified")
@@ -136,18 +136,14 @@ func (s *server) GetMemoryQuota(ctx context.Context, in *pb.GetMemoryQuotaReques
 	}
 
 	device.mut.Lock()
+	defer device.mut.Unlock()
 
 	if device.MemoryUsed+in.Memory > device.MemoryTotal || pod.MemoryUsed+in.Memory > pod.MemoryLimit {
-		device.mut.Unlock()
 		return nil, fmt.Errorf("OOM: memory limit exceeded")
 	}
 
 	device.MemoryUsed += in.Memory
 	pod.MemoryUsed += in.Memory
-
-	device.mut.Unlock()
-
-	log.Println(device.MemoryUsed)
 
 	return &pb.GetMemoryQuotaReply{}, nil
 }
@@ -274,6 +270,11 @@ func main() {
 	if *verbose {
 		go stateLoggerDaemon()
 	}
+
+	StartScheduler("dev-1")
+	GetScheduler("dev-1").UpdatePodQuota(&PodQuota{
+		PodId: "device", Requests: 0.5, Limit: 1.0,
+	})
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *port))
 	if err != nil {

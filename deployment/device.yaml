@@ -9,7 +9,9 @@ spec:
     imagePullPolicy: Always
     env:
     - name: CLIENT_ID
-      value: "pod-1"
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
     - name: DEVICE_ID
       value: "dev-1"
     - name: DEVICE_MANAGER_SERVICE_ADDR

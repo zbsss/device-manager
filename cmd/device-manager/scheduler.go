@@ -79,7 +79,7 @@ func (s *scheduler) tryScheduleLease() {
 		selected := s.queue[0]
 
 		if usedQuotaPerPod[selected.PodId] >= s.podQuota[selected.PodId].Limit {
-			log.Printf("Pod %s has reached its limit\n", selected.PodId)
+			log.Printf("Pod %s has reached its quota limit\n", selected.PodId)
 			return
 		}
 
@@ -97,14 +97,22 @@ func (s *scheduler) tryScheduleLease() {
 
 func (s *scheduler) tryTerminateExpiredLease() {
 	s.lock.Lock()
+	defer s.lock.Unlock()
 
 	if s.currentLease != nil && time.Now().After(s.currentLease.ExpiresAt) {
 		log.Printf("Lease for pod %s has expired\n", s.currentLease.PodId)
 
-		s.lock.Unlock()
-		s.ReturnLease(s.currentLease)
-	} else {
-		s.lock.Unlock()
+		err := EvictPod(s.currentLease.PodId, "default")
+		if err != nil {
+			log.Printf("Failed to evict pod %s: %v\n", s.currentLease.PodId, err)
+			return
+		}
+
+		// TODO: release memory owned by this pod
+
+		log.Printf("Pod %s evicted\n", s.currentLease.PodId)
+
+		s.cancelLeaseNoLock()
 	}
 }
 
@@ -142,6 +150,20 @@ func (s *scheduler) EnqueueLeaseRequest(req *TokenLeaseRequest) {
 	s.queue = append(s.queue, req)
 }
 
+func (s *scheduler) cancelLeaseNoLock() {
+	newHistEntry := LeaseHistoryEntry{
+		PodId:      s.currentLease.PodId,
+		LeasedAt:   s.currentLease.ExpiresAt.Add(-tokenDuration),
+		ReturnedAt: time.Now(),
+	}
+
+	s.leaseHistory = append([]*LeaseHistoryEntry{&newHistEntry}, s.leaseHistory...)
+
+	s.currentLease = nil
+
+	go s.saveLeaseHistoryEntry(newHistEntry)
+}
+
 func (s *scheduler) ReturnLease(lease *TokenLease) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -154,17 +176,7 @@ func (s *scheduler) ReturnLease(lease *TokenLease) error {
 		return fmt.Errorf("pod %s does not have a lease", lease.PodId)
 	}
 
-	newHistEntry := LeaseHistoryEntry{
-		PodId:      lease.PodId,
-		LeasedAt:   s.currentLease.ExpiresAt.Add(-tokenDuration),
-		ReturnedAt: time.Now(),
-	}
-
-	s.leaseHistory = append([]*LeaseHistoryEntry{&newHistEntry}, s.leaseHistory...)
-
-	s.currentLease = nil
-
-	go s.saveLeaseHistoryEntry(newHistEntry)
+	s.cancelLeaseNoLock()
 
 	return nil
 }

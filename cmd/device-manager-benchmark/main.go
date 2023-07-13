@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -12,6 +13,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
+
+func waitRandom(min, max int) {
+	time.Sleep(time.Duration(rand.Intn(max-min+1)+min) * time.Millisecond)
+}
 
 func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId string) {
 	defer wg.Done()
@@ -24,20 +29,21 @@ func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId 
 
 	ctx := context.Background()
 
-	logPrefix := fmt.Sprintf("[%s/%s]", deviceId, clientId)
+	logPrefix := fmt.Sprintf("[%s/%s] ", deviceId, clientId)
+	infoLogger := log.New(os.Stdout, logPrefix, log.LstdFlags)
 
 	for {
-		log.Printf("%s Getting memory quota", logPrefix)
+		infoLogger.Printf("Getting memory quota")
 		_, err := grpc.GetMemoryQuota(ctx, &pb.GetMemoryQuotaRequest{
 			Device: deviceId,
 			Pod:    clientId,
 			Memory: 100,
 		})
 		if err != nil {
-			log.Fatalf("%s could not get memory quota: %v", logPrefix, err)
+			infoLogger.Fatalf("could not get memory quota: %v", err)
 		}
 
-		log.Printf("%s Getting token", logPrefix)
+		infoLogger.Printf("Getting token")
 		token, err := grpc.GetToken(ctx, &pb.GetTokenRequest{
 			Device: deviceId,
 			Pod:    clientId,
@@ -46,31 +52,31 @@ func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId 
 			log.Fatalf("%s could not get token: %v", logPrefix, err)
 		}
 
-		log.Printf("%s Got token: %v", logPrefix, token.ExpiresAt)
+		infoLogger.Printf("Got token: %v", token.ExpiresAt)
 
 		// Simulate work
-		time.Sleep(time.Duration(rand.Intn(workTimeMax-workTimeMin+1)+workTimeMin) * time.Millisecond)
+		waitRandom(workTimeMin, workTimeMax)
 
-		log.Printf("%s Returning token", logPrefix)
+		infoLogger.Printf("Returning token")
 		_, err = grpc.ReturnToken(ctx, &pb.ReturnTokenRequest{
 			Device: deviceId,
 			Pod:    clientId,
 		})
 		if err != nil {
-			log.Fatalf("%s could not return token: %v", logPrefix, err)
+			infoLogger.Fatalf("could not return token: %v", err)
 		}
 
-		log.Printf("%s Returning memory quota", logPrefix)
+		infoLogger.Printf("Returning memory quota")
 		_, err = grpc.ReturnMemoryQuota(ctx, &pb.ReturnMemoryQuotaRequest{
 			Device: deviceId,
 			Pod:    clientId,
 			Memory: 100,
 		})
 		if err != nil {
-			log.Fatalf("%s could not return memory quota: %v", logPrefix, err)
+			infoLogger.Fatalf("could not return memory quota: %v", err)
 		}
 
-		time.Sleep(time.Duration(rand.Intn(inbetweenTimeMax-inbetweenTimeMin+1)+inbetweenTimeMin) * time.Millisecond)
+		waitRandom(inbetweenTimeMin, inbetweenTimeMax)
 	}
 }
 

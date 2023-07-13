@@ -24,9 +24,41 @@ spec:
       labels:
         app: device-manager
     spec:
+      serviceAccountName: evict-pods-sa
       containers:
       - name: device-manager
         image: docker.io/zbsss/device-manager:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 50051
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: evict-pods-sa
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: evict-pods-role
+  namespace: default
+rules:
+- apiGroups: [""]
+  resources: ["pods/eviction"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: evict-pods-rolebinding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: evict-pods-sa
+  namespace: default
+roleRef:
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+  name: evict-pods-role
+
