@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zbsss/device-manager/opencl"
+	// opencl "github.com/zbsss/device-manager/opencl"
+	opencl "github.com/zbsss/device-manager/remote-opencl"
 )
 
 var kernelSource = `
@@ -23,7 +24,7 @@ __kernel void square(
 const (
 	deviceType = opencl.DeviceTypeAll
 
-	dataSize = 128
+	dataSize = 4096 * 4096
 
 	programCode = `
 kernel void kern(global float* out, global float* a, global float* b)
@@ -69,6 +70,8 @@ func printInfo(platform opencl.Platform, device opencl.Device) {
 }
 
 func main() {
+	start := time.Now()
+
 	platforms, err := opencl.GetPlatforms()
 	if err != nil {
 		panic(err)
@@ -186,7 +189,7 @@ func main() {
 		write_data[i] = float32(i)
 	}
 
-	for {
+	for i := 0; i < 100; i++ {
 		err = commandQueue.EnqueueWriteBuffer(buffer1, true, write_data)
 		if err != nil {
 			panic(err)
@@ -211,13 +214,17 @@ func main() {
 		commandQueue.Flush()
 		commandQueue.Finish()
 
-		fmt.Println()
-		printHeader("Output")
-		for _, item := range data {
-			fmt.Printf("%v ", item)
-		}
-		fmt.Println()
+		// fmt.Println()
+		// printHeader("Output")
+		// for _, item := range data {
+		// 	fmt.Printf("%v ", item)
+		// }
+		// fmt.Println()
 
-		time.Sleep(30 * time.Second)
+		// time.Sleep(30 * time.Second)
 	}
+
+	end := time.Now()
+
+	fmt.Println("Time: ", end.Sub(start))
 }

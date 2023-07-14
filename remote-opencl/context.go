@@ -2,6 +2,11 @@ package opencl
 
 // #include "opencl.h"
 import "C"
+import (
+	"context"
+
+	pb "github.com/zbsss/device-manager/generated"
+)
 
 type Context struct {
 	context C.cl_context
@@ -36,6 +41,12 @@ func (c Context) CreateProgramWithSource(programCode string) (Program, error) {
 }
 
 func (c Context) CreateBuffer(memFlags []MemFlags, size uint64) (Buffer, error) {
+	ctx := context.Background()
+	_, err := Scheduler.GetMemoryQuota(ctx, &pb.GetMemoryQuotaRequest{Device: DeviceId, Pod: ClientId, Memory: size})
+	if err != nil {
+		return Buffer{}, err
+	}
+
 	return createBuffer(c, memFlags, size)
 }
 

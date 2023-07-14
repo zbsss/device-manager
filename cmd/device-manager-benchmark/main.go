@@ -27,8 +27,8 @@ var clients = []*pb.RegisterPodQuotaRequest{
 		Pod:    "client-0",
 
 		Requests: 0.5,
-		Limit:    1.0,
-		Memory:   0.5,
+		Limit:    0.75,
+		Memory:   0.25,
 	},
 	{
 		Device: "dev-0",
@@ -38,14 +38,14 @@ var clients = []*pb.RegisterPodQuotaRequest{
 		Limit:    0.25,
 		Memory:   0.25,
 	},
-	// {
-	// 	Device: "dev-0",
-	// 	Pod:    "client-2",
+	{
+		Device: "dev-0",
+		Pod:    "client-2",
 
-	// 	Requests: 0.25,
-	// 	Limit:    0.5,
-	// 	Memory:   0.25,
-	// },
+		Requests: 0.25,
+		Limit:    0.25,
+		Memory:   0.25,
+	},
 }
 
 func waitRandom(min, max int) {
@@ -55,10 +55,10 @@ func waitRandom(min, max int) {
 func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId string) {
 	defer wg.Done()
 
-	workTimeMin := 50
-	workTimeMax := 200
+	workTimeMin := 200
+	workTimeMax := 225
 
-	// inbetweenTimeMin := 50
+	// inbetweenTimeMin := 0
 	// inbetweenTimeMax := 100
 
 	ctx := context.Background()
@@ -108,10 +108,6 @@ func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId 
 		})
 		if err != nil {
 			infoLogger.Fatalf("could not return memory quota: %v", err)
-		}
-
-		if clientId == "client-1" {
-			time.Sleep(100 * time.Millisecond)
 		}
 
 		// waitRandom(inbetweenTimeMin, inbetweenTimeMax)

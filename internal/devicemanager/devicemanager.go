@@ -36,13 +36,13 @@ func NewTestDeviceManager(schedulerWindow, schedulerTokenExpiration time.Duratio
 			"dev-1": {
 				mut:         &sync.Mutex{},
 				Id:          "dev-1",
-				MemoryTotal: 4096,
+				MemoryTotal: 10000000000000,
 				MemoryUsed:  0,
 				Pods: map[string]*Pod{
 					"device": {
 						Id:          "device",
 						MemoryQuota: 0.5,
-						MemoryLimit: 2048,
+						MemoryLimit: 10000000000000 * 0.5,
 						// TODO: when pod is killed the memory is not returned.
 						// Need to add a expiration time after which the memeory is returned automatically
 						MemoryUsed: 0,

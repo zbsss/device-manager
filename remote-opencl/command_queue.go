@@ -3,8 +3,11 @@ package opencl
 // #include "opencl.h"
 import "C"
 import (
+	"context"
 	"errors"
 	"unsafe"
+
+	pb "github.com/zbsss/device-manager/generated"
 )
 
 type CommandQueue struct {
@@ -28,6 +31,15 @@ func createCommandQueue(context Context, device Device) (CommandQueue, error) {
 }
 
 func (c CommandQueue) EnqueueNDRangeKernel(kernel Kernel, workDim uint32, globalWorkSize []uint64) error {
+	ctx := context.Background()
+	_, err := Scheduler.GetToken(ctx, &pb.GetTokenRequest{
+		Pod:    ClientId,
+		Device: DeviceId,
+	})
+	if err != nil {
+		return err
+	}
+
 	errInt := clError(C.clEnqueueNDRangeKernel(c.commandQueue,
 		kernel.kernel,
 		C.cl_uint(workDim),
@@ -35,7 +47,19 @@ func (c CommandQueue) EnqueueNDRangeKernel(kernel Kernel, workDim uint32, global
 		(*C.size_t)(&globalWorkSize[0]),
 		nil, 0, nil, nil))
 
-	return clErrorToError(errInt)
+	clErr := clErrorToError(errInt)
+
+	// time.Sleep(20 * time.Second)
+
+	_, err = Scheduler.ReturnToken(ctx, &pb.ReturnTokenRequest{
+		Pod:    ClientId,
+		Device: DeviceId,
+	})
+	if err != nil {
+		return err
+	}
+
+	return clErr
 }
 
 func (c CommandQueue) EnqueueReadBuffer(buffer Buffer, blockingRead bool, dataPtr interface{}) error {

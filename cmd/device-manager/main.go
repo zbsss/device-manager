@@ -15,7 +15,7 @@ import (
 
 var (
 	port          = flag.Int("port", 50051, "The server port")
-	tokenLifetime = flag.Int("token-life", 200, "Lifetime of token in milliseconds")
+	tokenLifetime = flag.Int("token-life", 250, "Lifetime of token in milliseconds")
 	windowSize    = flag.Int("windowSize", 10000, "Window size in milliseconds")
 )
 
