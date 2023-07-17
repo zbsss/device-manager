@@ -11,14 +11,27 @@ protoc \
 
 Build docker from root directory of the project:
 ```
-docker build -t zbsss/device-manager -f deployment/docker/device-manager/Dockerfile .
+docker build -t zbsss/device-manager -f deploy/docker/device-manager/Dockerfile .
 docker push zbsss/device-manager:latest
-kubectl apply -f deployment/deployment.yaml
+kubectl apply -f deploy/device-manager.yaml
 ```
 ```
-docker build -t zbsss/device -f deployment/docker/device/Dockerfile .
+docker build -t zbsss/device -f deploy/docker/device/Dockerfile .
 docker push zbsss/device:latest
-kubectl apply -f deployment/device.yaml
+kubectl apply -f deploy/device.yaml
+```
+
+```
+docker build -t zbsss/device-plugin -f deploy/docker/device-plugin/Dockerfile .
+docker push zbsss/device-plugin:latest
+kubectl apply -f deploy/device-plugin.yaml
+
+
+
+kubectl describe daemonset device-plugin -n kube-system
+
+kubectl apply -f deploy/device-plugin-test.yaml
+
 ```
 
 

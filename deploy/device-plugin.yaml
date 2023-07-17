@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: device-plugin
+  namespace: kube-system
+  labels:
+    k8s-app: device-plugin
+spec:
+  selector:
+    matchLabels:
+      name: device-plugin
+  template:
+    metadata:
+      labels:
+        name: device-plugin
+    spec:
+      hostNetwork: true
+      containers:
+      - name: device-plugin
+        image: docker.io/zbsss/device-plugin:latest
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+        volumeMounts:
+        - name: device-plugin
+          mountPath: /var/lib/kubelet/device-plugins
+      volumes:
+      - name: device-plugin
+        hostPath:
+          path: /var/lib/kubelet/device-plugins
