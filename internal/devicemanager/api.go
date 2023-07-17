@@ -13,11 +13,11 @@ import (
 func (dm *DeviceManager) GetAvailableResources(ctx context.Context, in *pb.GetAvailableDevicesRequest) (*pb.GetAvailableDevicesReply, error) {
 	log.Printf("Received: GetAvailableResources")
 
-	var devices []*pb.DeviceResources
+	var devices []*pb.FreeDeviceResources
 
 	for _, device := range dm.devices {
 		if device.Vendor == in.Vendor && device.Model == in.Model {
-			devices = append(devices, &pb.DeviceResources{
+			devices = append(devices, &pb.FreeDeviceResources{
 				DeviceId: device.Id,
 				Memory:   float64(device.MemoryUsed) / float64(device.MemoryTotal),
 				Requests: dm.schedulerPerDevice[device.Id].GetAvailableQuota(),
@@ -25,7 +25,7 @@ func (dm *DeviceManager) GetAvailableResources(ctx context.Context, in *pb.GetAv
 		}
 	}
 
-	return &pb.GetAvailableDevicesReply{Devices: devices}, nil
+	return &pb.GetAvailableDevicesReply{Free: devices}, nil
 }
 
 func (dm *DeviceManager) GetToken(ctx context.Context, in *pb.GetTokenRequest) (*pb.GetTokenReply, error) {
@@ -183,9 +183,6 @@ func (dm *DeviceManager) RegisterPodQuota(ctx context.Context, in *pb.RegisterPo
 		return nil, fmt.Errorf("device %s not registered", in.Device)
 	}
 
-	device.mut.Lock()
-	defer device.mut.Unlock()
-
 	if in.Requests > in.Limit {
 		return nil, fmt.Errorf("requests > limit")
 	}
@@ -197,6 +194,9 @@ func (dm *DeviceManager) RegisterPodQuota(ctx context.Context, in *pb.RegisterPo
 	if in.Limit == 0 {
 		in.Limit = in.Requests
 	}
+
+	device.mut.Lock()
+	defer device.mut.Unlock()
 
 	err := dm.schedulerPerDevice[in.Device].AllocatePodQuota(
 		&scheduler.PodQuota{

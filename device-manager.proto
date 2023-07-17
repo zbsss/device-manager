@@ -77,12 +77,12 @@ message GetAvailableDevicesRequest {
   string model = 2;
 }
 
-message DeviceResources {
+message FreeDeviceResources {
   string device_id = 1;
   double memory = 2;
   double requests = 3;
 }
 
 message GetAvailableDevicesReply {
-  repeated DeviceResources devices = 1;
+  repeated FreeDeviceResources free = 1;
 }
