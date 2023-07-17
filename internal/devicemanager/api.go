@@ -19,7 +19,7 @@ func (dm *DeviceManager) GetAvailableResources(ctx context.Context, in *pb.GetAv
 		if device.Vendor == in.Vendor && device.Model == in.Model {
 			devices = append(devices, &pb.FreeDeviceResources{
 				DeviceId: device.Id,
-				Memory:   float64(device.MemoryUsed) / float64(device.MemoryTotal),
+				Memory:   1.0 - float64(device.MemoryUsed)/float64(device.MemoryTotal),
 				Requests: dm.schedulerPerDevice[device.Id].GetAvailableQuota(),
 			})
 		}
