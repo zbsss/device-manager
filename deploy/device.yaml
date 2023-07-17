@@ -2,7 +2,12 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: device
+  labels:
+    sharedev.requests: '0.5'
+    sharedev.limit: '1.0'
+    sharedev.device: 'example.com-mydev'
 spec:
+  restartPolicy: Never
   containers:
   - name: device
     image: docker.io/zbsss/device:latest
