@@ -14,5 +14,8 @@ spec:
           fieldPath: metadata.name
     - name: DEVICE_ID
       value: "dev-1"
-    - name: DEVICE_MANAGER_SERVICE_ADDR
-      value: "device-manager-service:80"
+    - name: HOST_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+

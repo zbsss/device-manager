@@ -1,21 +1,8 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: device-manager-service
-spec:
-  selector:
-    app: device-manager
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 50051
----
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
-  name: device-manager-deployment
+  name: device-manager-daemon
 spec:
-  replicas: 1
   selector:
     matchLabels:
       app: device-manager
@@ -31,6 +18,7 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 50051
+          hostPort: 50051
         env:
         - name: POD_IP
           valueFrom:
