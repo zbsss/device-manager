@@ -19,18 +19,20 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	DeviceManager_GetToken_FullMethodName          = "/device_manager.DeviceManager/GetToken"
-	DeviceManager_ReturnToken_FullMethodName       = "/device_manager.DeviceManager/ReturnToken"
-	DeviceManager_GetMemoryQuota_FullMethodName    = "/device_manager.DeviceManager/GetMemoryQuota"
-	DeviceManager_ReturnMemoryQuota_FullMethodName = "/device_manager.DeviceManager/ReturnMemoryQuota"
-	DeviceManager_RegisterDevice_FullMethodName    = "/device_manager.DeviceManager/RegisterDevice"
-	DeviceManager_RegisterPodQuota_FullMethodName  = "/device_manager.DeviceManager/RegisterPodQuota"
+	DeviceManager_GetAvailableDevices_FullMethodName = "/device_manager.DeviceManager/GetAvailableDevices"
+	DeviceManager_GetToken_FullMethodName            = "/device_manager.DeviceManager/GetToken"
+	DeviceManager_ReturnToken_FullMethodName         = "/device_manager.DeviceManager/ReturnToken"
+	DeviceManager_GetMemoryQuota_FullMethodName      = "/device_manager.DeviceManager/GetMemoryQuota"
+	DeviceManager_ReturnMemoryQuota_FullMethodName   = "/device_manager.DeviceManager/ReturnMemoryQuota"
+	DeviceManager_RegisterDevice_FullMethodName      = "/device_manager.DeviceManager/RegisterDevice"
+	DeviceManager_RegisterPodQuota_FullMethodName    = "/device_manager.DeviceManager/RegisterPodQuota"
 )
 
 // DeviceManagerClient is the client API for DeviceManager service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DeviceManagerClient interface {
+	GetAvailableDevices(ctx context.Context, in *GetAvailableDevicesRequest, opts ...grpc.CallOption) (*GetAvailableDevicesReply, error)
 	GetToken(ctx context.Context, in *GetTokenRequest, opts ...grpc.CallOption) (*GetTokenReply, error)
 	ReturnToken(ctx context.Context, in *ReturnTokenRequest, opts ...grpc.CallOption) (*ReturnTokenReply, error)
 	GetMemoryQuota(ctx context.Context, in *GetMemoryQuotaRequest, opts ...grpc.CallOption) (*GetMemoryQuotaReply, error)
@@ -45,6 +47,15 @@ type deviceManagerClient struct {
 
 func NewDeviceManagerClient(cc grpc.ClientConnInterface) DeviceManagerClient {
 	return &deviceManagerClient{cc}
+}
+
+func (c *deviceManagerClient) GetAvailableDevices(ctx context.Context, in *GetAvailableDevicesRequest, opts ...grpc.CallOption) (*GetAvailableDevicesReply, error) {
+	out := new(GetAvailableDevicesReply)
+	err := c.cc.Invoke(ctx, DeviceManager_GetAvailableDevices_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *deviceManagerClient) GetToken(ctx context.Context, in *GetTokenRequest, opts ...grpc.CallOption) (*GetTokenReply, error) {
@@ -105,6 +116,7 @@ func (c *deviceManagerClient) RegisterPodQuota(ctx context.Context, in *Register
 // All implementations must embed UnimplementedDeviceManagerServer
 // for forward compatibility
 type DeviceManagerServer interface {
+	GetAvailableDevices(context.Context, *GetAvailableDevicesRequest) (*GetAvailableDevicesReply, error)
 	GetToken(context.Context, *GetTokenRequest) (*GetTokenReply, error)
 	ReturnToken(context.Context, *ReturnTokenRequest) (*ReturnTokenReply, error)
 	GetMemoryQuota(context.Context, *GetMemoryQuotaRequest) (*GetMemoryQuotaReply, error)
@@ -118,6 +130,9 @@ type DeviceManagerServer interface {
 type UnimplementedDeviceManagerServer struct {
 }
 
+func (UnimplementedDeviceManagerServer) GetAvailableDevices(context.Context, *GetAvailableDevicesRequest) (*GetAvailableDevicesReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAvailableDevices not implemented")
+}
 func (UnimplementedDeviceManagerServer) GetToken(context.Context, *GetTokenRequest) (*GetTokenReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetToken not implemented")
 }
@@ -147,6 +162,24 @@ type UnsafeDeviceManagerServer interface {
 
 func RegisterDeviceManagerServer(s grpc.ServiceRegistrar, srv DeviceManagerServer) {
 	s.RegisterService(&DeviceManager_ServiceDesc, srv)
+}
+
+func _DeviceManager_GetAvailableDevices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAvailableDevicesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceManagerServer).GetAvailableDevices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceManager_GetAvailableDevices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceManagerServer).GetAvailableDevices(ctx, req.(*GetAvailableDevicesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _DeviceManager_GetToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -264,6 +297,10 @@ var DeviceManager_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "device_manager.DeviceManager",
 	HandlerType: (*DeviceManagerServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetAvailableDevices",
+			Handler:    _DeviceManager_GetAvailableDevices_Handler,
+		},
 		{
 			MethodName: "GetToken",
 			Handler:    _DeviceManager_GetToken_Handler,

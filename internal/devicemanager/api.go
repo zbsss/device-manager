@@ -10,6 +10,24 @@ import (
 	"github.com/zbsss/device-manager/internal/scheduler"
 )
 
+func (dm *DeviceManager) GetAvailableResources(ctx context.Context, in *pb.GetAvailableDevicesRequest) (*pb.GetAvailableDevicesReply, error) {
+	log.Printf("Received: GetAvailableResources")
+
+	var devices []*pb.DeviceResources
+
+	for _, device := range dm.devices {
+		if device.Vendor == in.Vendor && device.Model == in.Model {
+			devices = append(devices, &pb.DeviceResources{
+				DeviceId: device.Id,
+				Memory:   float64(device.MemoryUsed) / float64(device.MemoryTotal),
+				Requests: dm.schedulerPerDevice[device.Id].GetAvailableQuota(),
+			})
+		}
+	}
+
+	return &pb.GetAvailableDevicesReply{Devices: devices}, nil
+}
+
 func (dm *DeviceManager) GetToken(ctx context.Context, in *pb.GetTokenRequest) (*pb.GetTokenReply, error) {
 	log.Printf("Received: GetToken for device %s from pod %s", in.Device, in.Pod)
 
@@ -168,9 +186,25 @@ func (dm *DeviceManager) RegisterPodQuota(ctx context.Context, in *pb.RegisterPo
 	device.mut.Lock()
 	defer device.mut.Unlock()
 
-	// TODO: validate memory and requests
+	if in.Requests > in.Limit {
+		return nil, fmt.Errorf("requests > limit")
+	}
+
+	if in.Requests < 0 || in.Limit < 0 || in.Memory < 0 {
+		return nil, fmt.Errorf("requests, limit and memory must be positive")
+	}
+
 	if in.Limit == 0 {
 		in.Limit = in.Requests
+	}
+
+	err := dm.schedulerPerDevice[in.Device].AllocatePodQuota(
+		&scheduler.PodQuota{
+			PodId: in.Pod, Requests: in.Requests, Limit: in.Limit,
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	device.Pods[in.Pod] = &Pod{
@@ -179,10 +213,6 @@ func (dm *DeviceManager) RegisterPodQuota(ctx context.Context, in *pb.RegisterPo
 		MemoryLimit: uint64(in.Memory * float64(device.MemoryTotal)),
 		MemoryUsed:  0,
 	}
-
-	dm.schedulerPerDevice[in.Device].UpdatePodQuota(&scheduler.PodQuota{
-		PodId: in.Pod, Requests: in.Requests, Limit: in.Limit,
-	})
 
 	return &pb.RegisterPodQuotaReply{}, nil
 }

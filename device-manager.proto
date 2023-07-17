@@ -5,6 +5,8 @@ option go_package = "github.com/zbsss/device-manager/generated";
 package device_manager;
 
 service DeviceManager {
+  rpc GetAvailableDevices(GetAvailableDevicesRequest) returns (GetAvailableDevicesReply) {}
+
   rpc GetToken(GetTokenRequest) returns (GetTokenReply) {}
   rpc ReturnToken(ReturnTokenRequest) returns (ReturnTokenReply) {}
 
@@ -68,4 +70,19 @@ message RegisterPodQuotaRequest {
 }
 
 message RegisterPodQuotaReply {
+}
+
+message GetAvailableDevicesRequest {
+  string vendor = 1;
+  string model = 2;
+}
+
+message DeviceResources {
+  string device_id = 1;
+  double memory = 2;
+  double requests = 3;
+}
+
+message GetAvailableDevicesReply {
+  repeated DeviceResources devices = 1;
 }

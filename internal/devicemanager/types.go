@@ -11,6 +11,8 @@ type Pod struct {
 
 type Device struct {
 	mut         *sync.Mutex
+	Vendor      string
+	Model       string
 	Id          string
 	MemoryTotal uint64
 	MemoryUsed  uint64
