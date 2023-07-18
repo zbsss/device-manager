@@ -19,7 +19,7 @@ func (dm *DeviceManager) GetAvailableDevices(ctx context.Context, in *pb.GetAvai
 		if device.Vendor == in.Vendor && device.Model == in.Model {
 			devices = append(devices, &pb.FreeDeviceResources{
 				DeviceId: device.Id,
-				Memory:   1.0 - float64(device.MemoryUsed)/float64(device.MemoryTotal),
+				Memory:   getAvailableMemory(device),
 				Requests: dm.schedulerPerDevice[device.Id].GetAvailableQuota(),
 			})
 		}
@@ -207,6 +207,11 @@ func (dm *DeviceManager) RegisterPodQuota(ctx context.Context, in *pb.RegisterPo
 		return nil, err
 	}
 
+	availableMemory := getAvailableMemory(device)
+	if in.Memory > availableMemory {
+		return nil, fmt.Errorf("OOM: memory limit exceeded")
+	}
+
 	device.Pods[in.Pod] = &Pod{
 		Id:          in.Pod,
 		MemoryQuota: in.Memory,
@@ -215,4 +220,12 @@ func (dm *DeviceManager) RegisterPodQuota(ctx context.Context, in *pb.RegisterPo
 	}
 
 	return &pb.RegisterPodQuotaReply{}, nil
+}
+
+func getAvailableMemory(device *Device) float64 {
+	availableQuota := 1.0
+	for _, pod := range device.Pods {
+		availableQuota -= pod.MemoryQuota
+	}
+	return availableQuota
 }

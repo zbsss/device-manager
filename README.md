@@ -9,6 +9,11 @@ protoc \
   device-manager.proto
 ```
 
+Create kind cluster
+```
+kind create cluster --config deploy/kind-config.yaml
+```
+
 Build docker from root directory of the project:
 ```
 docker build -t zbsss/device-manager -f deploy/docker/device-manager/Dockerfile .
