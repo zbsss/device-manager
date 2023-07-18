@@ -10,7 +10,7 @@ import (
 	"github.com/zbsss/device-manager/internal/scheduler"
 )
 
-func (dm *DeviceManager) GetAvailableResources(ctx context.Context, in *pb.GetAvailableDevicesRequest) (*pb.GetAvailableDevicesReply, error) {
+func (dm *DeviceManager) GetAvailableDevices(ctx context.Context, in *pb.GetAvailableDevicesRequest) (*pb.GetAvailableDevicesReply, error) {
 	log.Printf("Received: GetAvailableResources")
 
 	var devices []*pb.FreeDeviceResources

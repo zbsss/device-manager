@@ -3,9 +3,11 @@ kind: Pod
 metadata:
   name: device
   labels:
+    sharedev.vendor: 'example.com'
+    sharedev.model: 'mydev'
     sharedev.requests: '0.5'
     sharedev.limit: '1.0'
-    sharedev.device: 'example.com-mydev'
+    sharedev.memory: '0.5'
 spec:
   restartPolicy: Never
   containers:
@@ -13,12 +15,16 @@ spec:
     image: docker.io/zbsss/device:latest
     imagePullPolicy: Always
     env:
+    # TODO: this will be passed down by scheduler
     - name: CLIENT_ID
       valueFrom:
         fieldRef:
           fieldPath: metadata.name
+    # TODO: this will be passed down by scheduler
     - name: DEVICE_ID
       value: "dev-1"
+
+    # TODO: maybe this too? if it's possible
     - name: HOST_IP
       valueFrom:
         fieldRef:
