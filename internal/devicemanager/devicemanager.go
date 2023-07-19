@@ -34,20 +34,20 @@ func NewTestDeviceManager(schedulerWindow, schedulerTokenExpiration time.Duratio
 	dm := &DeviceManager{
 		devices: map[string]*Device{
 			"dev-1": {
-				mut:         &sync.Mutex{},
-				Vendor:      "example.com",
-				Model:       "mydev",
-				Id:          "dev-1",
-				MemoryTotal: 10000000000000,
-				MemoryUsed:  0,
+				mut:          &sync.Mutex{},
+				Vendor:       "example.com",
+				Model:        "mydev",
+				Id:           "dev-1",
+				MemoryBTotal: 10000000000000,
+				MemoryBUsed:  0,
 				Pods: map[string]*Pod{
 					"device": {
-						Id:          "device",
-						MemoryQuota: 0.5,
-						MemoryLimit: 10000000000000 * 0.5,
+						Id:           "device",
+						MemoryQuota:  0.5,
+						MemoryBLimit: 10000000000000 * 0.5,
 						// TODO: when pod is killed the memory is not returned.
 						// Need to add a expiration time after which the memeory is returned automatically
-						MemoryUsed: 0,
+						MemoryBUsed: 0,
 					},
 				},
 			},
@@ -72,10 +72,10 @@ func (dm *DeviceManager) stateLoggerDaemon() {
 		var sb strings.Builder
 		sb.WriteString("\n===Current state===")
 		for _, device := range dm.devices {
-			sb.WriteString(fmt.Sprintf("\nDevice %s: %d/%d", device.Id, device.MemoryUsed, device.MemoryTotal))
+			sb.WriteString(fmt.Sprintf("\nDevice %s: %d/%d", device.Id, device.MemoryBUsed, device.MemoryBTotal))
 
 			for _, pod := range device.Pods {
-				sb.WriteString(fmt.Sprintf("\n\tPod %s: %d/%d", pod.Id, pod.MemoryUsed, pod.MemoryLimit))
+				sb.WriteString(fmt.Sprintf("\n\tPod %s: %d/%d", pod.Id, pod.MemoryBUsed, pod.MemoryBLimit))
 			}
 		}
 		sb.WriteString("\n===================\n")

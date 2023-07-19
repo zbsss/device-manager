@@ -55,5 +55,5 @@ func (b Buffer) Release() {
 	C.clReleaseMemObject(b.buffer)
 
 	ctx := context.Background()
-	Scheduler.ReturnMemoryQuota(ctx, &pb.ReturnMemoryQuotaRequest{Device: DeviceId, Pod: ClientId, Memory: uint64(size)})
+	Scheduler.FreeMemory(ctx, &pb.FreeMemoryRequest{DeviceId: DeviceId, PodId: ClientId, MemoryB: uint64(size)})
 }

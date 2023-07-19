@@ -42,7 +42,7 @@ func (c Context) CreateProgramWithSource(programCode string) (Program, error) {
 
 func (c Context) CreateBuffer(memFlags []MemFlags, size uint64) (Buffer, error) {
 	ctx := context.Background()
-	_, err := Scheduler.GetMemoryQuota(ctx, &pb.GetMemoryQuotaRequest{Device: DeviceId, Pod: ClientId, Memory: size})
+	_, err := Scheduler.AllocateMemory(ctx, &pb.AllocateMemoryRequest{DeviceId: DeviceId, PodId: ClientId, MemoryB: size})
 	if err != nil {
 		return Buffer{}, err
 	}

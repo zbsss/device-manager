@@ -5,21 +5,22 @@ option go_package = "github.com/zbsss/device-manager/generated";
 package device_manager;
 
 service DeviceManager {
+  rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceReply) {}
   rpc GetAvailableDevices(GetAvailableDevicesRequest) returns (GetAvailableDevicesReply) {}
-
+  
+  rpc ReservePodQuota(ReservePodQuotaRequest) returns (ReservePodQuotaReply) {}
+  rpc UnreservePodQuota(UnreservePodQuotaRequest) returns (UnreservePodQuotaQuotaReply) {}
+  
   rpc GetToken(GetTokenRequest) returns (GetTokenReply) {}
   rpc ReturnToken(ReturnTokenRequest) returns (ReturnTokenReply) {}
 
-  rpc GetMemoryQuota(GetMemoryQuotaRequest) returns (GetMemoryQuotaReply) {}
-  rpc ReturnMemoryQuota(ReturnMemoryQuotaRequest) returns (ReturnMemoryQuotaReply) {}
-
-  rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceReply) {}
-  rpc RegisterPodQuota(RegisterPodQuotaRequest) returns (RegisterPodQuotaReply) {}
+  rpc AllocateMemory(AllocateMemoryRequest) returns (AllocateMemoryReply) {}
+  rpc FreeMemory(FreeMemoryRequest) returns (FreeMemoryReply) {}
 }
 
 message GetTokenRequest {
-  string device = 1;
-  string pod = 2;
+  string device_id = 1;
+  string pod_id = 2;
 }
 
 message GetTokenReply {
@@ -27,49 +28,60 @@ message GetTokenReply {
 }
 
 message ReturnTokenRequest {
-  string device = 1;
-  string pod = 2;
+  string device_id = 1;
+  string pod_id = 2;
 }
 
 message ReturnTokenReply {
 }
 
-message GetMemoryQuotaRequest {
-  string device = 1;
-  string pod = 2;
-  uint64 memory = 3;
+message AllocateMemoryRequest {
+  string device_id = 1;
+  string pod_id = 2;
+  uint64 memory_b = 3;
 }
 
-message GetMemoryQuotaReply {
+message AllocateMemoryReply {
 }
 
-message ReturnMemoryQuotaRequest {
-  string device = 1;
-  string pod = 2;
-  uint64 memory = 3;
+message FreeMemoryRequest {
+  string device_id = 1;
+  string pod_id = 2;
+  uint64 memory_b = 3;
 }
 
-message ReturnMemoryQuotaReply {
+message FreeMemoryReply {
 }
 
 message RegisterDeviceRequest {
-  string device = 1;
-  uint64 memory = 2;
+  string vendor = 1;
+  string model = 2;
+  string device_id = 3;
+  
+  uint64 memory_b = 4;
 }
 
 message RegisterDeviceReply {
 }
 
-message RegisterPodQuotaRequest {
-  string device = 1;
-  string pod = 2;
+message ReservePodQuotaRequest {
+  string device_id = 1;
+  string pod_id = 2;
 
   double requests = 3;
   double limit = 4;
   double memory = 5;
 }
 
-message RegisterPodQuotaReply {
+message ReservePodQuotaReply {
+}
+
+message UnreservePodQuotaRequest {
+  string device_id = 1;
+  string pod_id = 2;
+}
+
+message UnreservePodQuotaQuotaReply {
 }
 
 message GetAvailableDevicesRequest {

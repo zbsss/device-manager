@@ -33,8 +33,8 @@ func createCommandQueue(context Context, device Device) (CommandQueue, error) {
 func (c CommandQueue) EnqueueNDRangeKernel(kernel Kernel, workDim uint32, globalWorkSize []uint64) error {
 	ctx := context.Background()
 	_, err := Scheduler.GetToken(ctx, &pb.GetTokenRequest{
-		Pod:    ClientId,
-		Device: DeviceId,
+		PodId:    ClientId,
+		DeviceId: DeviceId,
 	})
 	if err != nil {
 		return err
@@ -49,11 +49,9 @@ func (c CommandQueue) EnqueueNDRangeKernel(kernel Kernel, workDim uint32, global
 
 	clErr := clErrorToError(errInt)
 
-	// time.Sleep(20 * time.Second)
-
 	_, err = Scheduler.ReturnToken(ctx, &pb.ReturnTokenRequest{
-		Pod:    ClientId,
-		Device: DeviceId,
+		PodId:    ClientId,
+		DeviceId: DeviceId,
 	})
 	if err != nil {
 		return err

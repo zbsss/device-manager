@@ -16,31 +16,31 @@ import (
 
 var devices = []*pb.RegisterDeviceRequest{
 	{
-		Device: "dev-0",
-		Memory: 1024,
+		DeviceId: "dev-0",
+		MemoryB:  1024,
 	},
 }
 
-var clients = []*pb.RegisterPodQuotaRequest{
+var clients = []*pb.ReservePodQuotaRequest{
 	{
-		Device: "dev-0",
-		Pod:    "client-0",
+		DeviceId: "dev-0",
+		PodId:    "client-0",
 
 		Requests: 0.5,
 		Limit:    0.75,
 		Memory:   0.25,
 	},
 	{
-		Device: "dev-0",
-		Pod:    "client-1",
+		DeviceId: "dev-0",
+		PodId:    "client-1",
 
 		Requests: 0.25,
 		Limit:    0.25,
 		Memory:   0.25,
 	},
 	{
-		Device: "dev-0",
-		Pod:    "client-2",
+		DeviceId: "dev-0",
+		PodId:    "client-2",
 
 		Requests: 0.25,
 		Limit:    0.25,
@@ -68,10 +68,10 @@ func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId 
 
 	for {
 		infoLogger.Printf("Getting memory quota")
-		_, err := grpc.GetMemoryQuota(ctx, &pb.GetMemoryQuotaRequest{
-			Device: deviceId,
-			Pod:    clientId,
-			Memory: 100,
+		_, err := grpc.AllocateMemory(ctx, &pb.AllocateMemoryRequest{
+			DeviceId: deviceId,
+			PodId:    clientId,
+			MemoryB:  100,
 		})
 		if err != nil {
 			infoLogger.Fatalf("could not get memory quota: %v", err)
@@ -79,8 +79,8 @@ func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId 
 
 		infoLogger.Printf("Getting token")
 		token, err := grpc.GetToken(ctx, &pb.GetTokenRequest{
-			Device: deviceId,
-			Pod:    clientId,
+			DeviceId: deviceId,
+			PodId:    clientId,
 		})
 		if err != nil {
 			log.Fatalf("%s could not get token: %v", logPrefix, err)
@@ -93,18 +93,18 @@ func worker(grpc pb.DeviceManagerClient, wg *sync.WaitGroup, deviceId, clientId 
 
 		infoLogger.Printf("Returning token")
 		_, err = grpc.ReturnToken(ctx, &pb.ReturnTokenRequest{
-			Device: deviceId,
-			Pod:    clientId,
+			DeviceId: deviceId,
+			PodId:    clientId,
 		})
 		if err != nil {
 			infoLogger.Fatalf("could not return token: %v", err)
 		}
 
 		infoLogger.Printf("Returning memory quota")
-		_, err = grpc.ReturnMemoryQuota(ctx, &pb.ReturnMemoryQuotaRequest{
-			Device: deviceId,
-			Pod:    clientId,
-			Memory: 100,
+		_, err = grpc.FreeMemory(ctx, &pb.FreeMemoryRequest{
+			DeviceId: deviceId,
+			PodId:    clientId,
+			MemoryB:  100,
 		})
 		if err != nil {
 			infoLogger.Fatalf("could not return memory quota: %v", err)
@@ -125,7 +125,7 @@ func setupDeviceManager(grpc pb.DeviceManagerClient) {
 	}
 
 	for _, client := range clients {
-		_, err := grpc.RegisterPodQuota(ctx, client)
+		_, err := grpc.ReservePodQuota(ctx, client)
 		if err != nil {
 			log.Fatalf("could not register client: %v", err)
 		}

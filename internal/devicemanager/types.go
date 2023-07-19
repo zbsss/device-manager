@@ -3,18 +3,18 @@ package devicemanager
 import "sync"
 
 type Pod struct {
-	Id          string
-	MemoryQuota float64
-	MemoryLimit uint64
-	MemoryUsed  uint64
+	Id           string
+	MemoryQuota  float64
+	MemoryBLimit uint64
+	MemoryBUsed  uint64
 }
 
 type Device struct {
-	mut         *sync.Mutex
-	Vendor      string
-	Model       string
-	Id          string
-	MemoryTotal uint64
-	MemoryUsed  uint64
-	Pods        map[string]*Pod
+	mut          *sync.Mutex
+	Vendor       string
+	Model        string
+	Id           string
+	MemoryBTotal uint64
+	MemoryBUsed  uint64
+	Pods         map[string]*Pod
 }
