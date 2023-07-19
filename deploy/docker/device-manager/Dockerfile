@@ -1,8 +1,8 @@
-# Start from a base image with Go installed
-FROM golang:1.17
+# Build stage
+FROM golang:1.17 AS build
 
 # Set the Current Working Directory inside the container
-WORKDIR /app
+WORKDIR /src
 
 # Copy go.mod and go.sum files to the workspace
 COPY go.mod go.sum ./
@@ -14,10 +14,15 @@ RUN go mod download
 COPY . .
 
 # Build the Go app
-RUN go build -o main ./cmd/device-manager
+RUN go build -o /out/main ./cmd/device-manager
+
+# Run stage
+FROM debian:buster-slim
+
+COPY --from=build /out/main /app/main
 
 # Expose port 50051 to the outside world
 EXPOSE 50051
 
 # Run the binary program produced by `go build`
-CMD ["./main"]
+CMD ["/app/main"]

@@ -1,5 +1,6 @@
 package opencl
 
+// #include "stdlib.h"
 // #include "opencl.h"
 import "C"
 import (

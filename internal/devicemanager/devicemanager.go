@@ -40,16 +40,7 @@ func NewTestDeviceManager(schedulerWindow, schedulerTokenExpiration time.Duratio
 				Id:           "dev-1",
 				MemoryBTotal: 10000000000000,
 				MemoryBUsed:  0,
-				Pods: map[string]*Pod{
-					"device": {
-						Id:           "device",
-						MemoryQuota:  0.5,
-						MemoryBLimit: 10000000000000 * 0.5,
-						// TODO: when pod is killed the memory is not returned.
-						// Need to add a expiration time after which the memeory is returned automatically
-						MemoryBUsed: 0,
-					},
-				},
+				Pods:         make(map[string]*Pod),
 			},
 		},
 		schedulerPerDevice: make(map[string]scheduler.Scheduler),
@@ -81,6 +72,6 @@ func (dm *DeviceManager) stateLoggerDaemon() {
 		sb.WriteString("\n===================\n")
 		log.Println(sb.String())
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(30 * time.Second)
 	}
 }
