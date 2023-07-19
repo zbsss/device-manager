@@ -54,6 +54,7 @@ func NewTestDeviceManager(schedulerWindow, schedulerTokenExpiration time.Duratio
 	dm.schedulerPerDevice["dev-1"] = sch
 
 	go dm.stateLoggerDaemon()
+	go dm.runGarbageCollector()
 
 	return dm
 }

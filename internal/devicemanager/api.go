@@ -223,9 +223,36 @@ func (dm *DeviceManager) ReservePodQuota(ctx context.Context, in *pb.ReservePodQ
 }
 
 func (dm *DeviceManager) UnreservePodQuota(ctx context.Context, in *pb.UnreservePodQuotaRequest) (*pb.UnreservePodQuotaQuotaReply, error) {
-	// TODO: implement
+	log.Println("Received: UnreservePodQuota")
+
+	if in.DeviceId == "" {
+		return nil, fmt.Errorf("device not specified")
+	}
+	if in.PodId == "" {
+		return nil, fmt.Errorf("pod not specified")
+	}
+
+	dm.unreservePodQuota(in.DeviceId, in.PodId)
 
 	return &pb.UnreservePodQuotaQuotaReply{}, nil
+}
+
+func (dm *DeviceManager) unreservePodQuota(deviceId, podId string) {
+	device := dm.devices[deviceId]
+	if device == nil {
+		return
+	}
+
+	device.mut.Lock()
+	defer device.mut.Unlock()
+
+	pod := device.Pods[podId]
+	if pod == nil {
+		return
+	}
+
+	device.MemoryBUsed -= pod.MemoryBUsed
+	delete(device.Pods, podId)
 }
 
 func getAvailableMemory(device *Device) float64 {
