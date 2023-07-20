@@ -11,4 +11,4 @@ spec:
     - "1000"
     resources:
       limits:
-        example.com/mydev: 1
+        example.com/mydev: "1"

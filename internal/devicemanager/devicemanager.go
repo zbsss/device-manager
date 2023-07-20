@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"sync"
 	"time"
 
 	pb "github.com/zbsss/device-manager/generated"
@@ -33,22 +32,22 @@ func NewDeviceManager(schedulerWindow, schedulerTokenExpiration time.Duration) *
 func NewTestDeviceManager(schedulerWindow, schedulerTokenExpiration time.Duration) *DeviceManager {
 	dm := &DeviceManager{
 		devices: map[string]*Device{
-			"dev-1": {
-				mut:          &sync.RWMutex{},
-				Vendor:       "example.com",
-				Model:        "mydev",
-				Id:           "dev-1",
-				MemoryBTotal: 10000000000000,
-				MemoryBUsed:  0,
-				Pods:         make(map[string]*Pod),
-			},
+			// "dev-1": {
+			// 	mut:          &sync.RWMutex{},
+			// 	Vendor:       "example.com",
+			// 	Model:        "mydev",
+			// 	Id:           "dev-1",
+			// 	MemoryBTotal: 10000000000000,
+			// 	MemoryBUsed:  0,
+			// 	Pods:         make(map[string]*Pod),
+			// },
 		},
 		schedulerPerDevice: make(map[string]scheduler.Scheduler),
 		sf:                 scheduler.NewSchedulerFactory(schedulerWindow, schedulerTokenExpiration),
 	}
 
-	sch := dm.sf.StartScheduler("dev-1")
-	dm.schedulerPerDevice["dev-1"] = sch
+	// sch := dm.sf.StartScheduler("dev-1")
+	// dm.schedulerPerDevice["dev-1"] = sch
 
 	go dm.stateLoggerDaemon()
 	go dm.runGarbageCollector()

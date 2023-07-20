@@ -11,7 +11,7 @@ import (
 )
 
 func (dm *DeviceManager) GetAvailableDevices(ctx context.Context, in *pb.GetAvailableDevicesRequest) (*pb.GetAvailableDevicesReply, error) {
-	// log.Printf("Received: GetAvailableResources")
+	log.Printf("Received: GetAvailableResources")
 
 	var devices []*pb.FreeDeviceResources
 
@@ -26,6 +26,8 @@ func (dm *DeviceManager) GetAvailableDevices(ctx context.Context, in *pb.GetAvai
 		}
 		device.mut.RUnlock()
 	}
+
+	log.Printf("Returning %v devices", devices)
 
 	return &pb.GetAvailableDevicesReply{Free: devices}, nil
 }
@@ -147,7 +149,17 @@ func (dm *DeviceManager) FreeMemory(ctx context.Context, in *pb.FreeMemoryReques
 }
 
 func (dm *DeviceManager) RegisterDevice(ctx context.Context, in *pb.RegisterDeviceRequest) (*pb.RegisterDeviceReply, error) {
-	// log.Printf("Received: RegisterDevice for device %s", in.DeviceId)
+	log.Printf("Received: RegisterDevice for device %s", in.DeviceId)
+
+	if in.DeviceId == "" {
+		return nil, fmt.Errorf("device not specified")
+	}
+	if in.Vendor == "" {
+		return nil, fmt.Errorf("vendor not specified")
+	}
+	if in.Model == "" {
+		return nil, fmt.Errorf("model not specified")
+	}
 
 	if _, ok := dm.devices[in.DeviceId]; ok {
 		return nil, fmt.Errorf("device already registered")
@@ -156,6 +168,8 @@ func (dm *DeviceManager) RegisterDevice(ctx context.Context, in *pb.RegisterDevi
 	dm.devices[in.DeviceId] = &Device{
 		mut:          &sync.RWMutex{},
 		Id:           in.DeviceId,
+		Vendor:       in.Vendor,
+		Model:        in.Model,
 		MemoryBTotal: in.MemoryB,
 		MemoryBUsed:  0,
 		Pods:         map[string]*Pod{},

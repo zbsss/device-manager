@@ -34,6 +34,11 @@ kubectl apply -f deploy/benchmark.yaml
 ```
 kubectl apply -f deploy/device.yaml
 
+```
+docker build -t zbsss/device-allocator -f deploy/docker/device-allocator/Dockerfile .
+docker push zbsss/device-allocator:latest
+```
+
 
 ```
 docker build -t zbsss/device-plugin -f deploy/docker/device-plugin/Dockerfile .

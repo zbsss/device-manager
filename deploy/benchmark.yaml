@@ -4,7 +4,7 @@ kind: Deployment
 metadata:
   name: benchmark
 spec:
-  replicas: 8
+  replicas: 9
   selector:
     matchLabels:
       app: benchmark
