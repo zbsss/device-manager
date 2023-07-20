@@ -20,11 +20,20 @@ docker build -t zbsss/device-manager -f deploy/docker/device-manager/Dockerfile 
 docker push zbsss/device-manager:latest
 kubectl apply -f deploy/device-manager.yaml
 ```
+
+```
+docker build -t zbsss/benchmark -f deploy/docker/benchmark/Dockerfile .
+docker push zbsss/benchmark:latest
+kubectl apply -f deploy/benchmark.yaml
+```
+
 ```
 docker build -t zbsss/device -f deploy/docker/device/Dockerfile .
 docker push zbsss/device:latest
-kubectl apply -f deploy/device.yaml
+kubectl apply -f deploy/benchmark.yaml
 ```
+kubectl apply -f deploy/device.yaml
+
 
 ```
 docker build -t zbsss/device-plugin -f deploy/docker/device-plugin/Dockerfile .

@@ -11,7 +11,7 @@ import (
 )
 
 func (dm *DeviceManager) GetAvailableDevices(ctx context.Context, in *pb.GetAvailableDevicesRequest) (*pb.GetAvailableDevicesReply, error) {
-	log.Printf("Received: GetAvailableResources")
+	// log.Printf("Received: GetAvailableResources")
 
 	var devices []*pb.FreeDeviceResources
 
@@ -31,7 +31,7 @@ func (dm *DeviceManager) GetAvailableDevices(ctx context.Context, in *pb.GetAvai
 }
 
 func (dm *DeviceManager) GetToken(ctx context.Context, in *pb.GetTokenRequest) (*pb.GetTokenReply, error) {
-	log.Printf("Received: GetToken for device %s from pod %s", in.DeviceId, in.PodId)
+	// log.Printf("Received: GetToken for device %s from pod %s", in.DeviceId, in.PodId)
 
 	if in.DeviceId == "" {
 		return nil, fmt.Errorf("device not specified")
@@ -48,13 +48,15 @@ func (dm *DeviceManager) GetToken(ctx context.Context, in *pb.GetTokenRequest) (
 	dm.schedulerPerDevice[in.DeviceId].EnqueueLeaseRequest(req)
 	token := <-req.Response
 
-	log.Printf("Sending token")
+	if token == nil {
+		return nil, fmt.Errorf("token not available")
+	}
 
 	return &pb.GetTokenReply{ExpiresAt: token.ExpiresAt.Unix()}, nil
 }
 
 func (dm *DeviceManager) ReturnToken(ctx context.Context, in *pb.ReturnTokenRequest) (*pb.ReturnTokenReply, error) {
-	log.Printf("Received: ReturnToken")
+	// log.Printf("Received: ReturnToken")
 
 	if in.DeviceId == "" {
 		return nil, fmt.Errorf("device not specified")
@@ -67,15 +69,13 @@ func (dm *DeviceManager) ReturnToken(ctx context.Context, in *pb.ReturnTokenRequ
 
 	if err != nil {
 		log.Printf("Error returning token: %s", err)
-	} else {
-		log.Printf("Token returned")
 	}
 
 	return &pb.ReturnTokenReply{}, nil
 }
 
 func (dm *DeviceManager) AllocateMemory(ctx context.Context, in *pb.AllocateMemoryRequest) (*pb.AllocateMemoryReply, error) {
-	log.Printf("Received: GetMemoryQuota for device %s: %d", in.DeviceId, in.MemoryB)
+	// log.Printf("Received: GetMemoryQuota for device %s: %d", in.DeviceId, in.MemoryB)
 
 	if in.DeviceId == "" {
 		return nil, fmt.Errorf("device not specified")
@@ -113,7 +113,7 @@ func (dm *DeviceManager) AllocateMemory(ctx context.Context, in *pb.AllocateMemo
 }
 
 func (dm *DeviceManager) FreeMemory(ctx context.Context, in *pb.FreeMemoryRequest) (*pb.FreeMemoryReply, error) {
-	log.Printf("Received: ReturnMemoryQuota for device %s: %d", in.DeviceId, in.MemoryB)
+	// log.Printf("Received: ReturnMemoryQuota for device %s: %d", in.DeviceId, in.MemoryB)
 
 	if in.DeviceId == "" {
 		return nil, fmt.Errorf("device not specified")
@@ -143,13 +143,11 @@ func (dm *DeviceManager) FreeMemory(ctx context.Context, in *pb.FreeMemoryReques
 	device.MemoryBUsed -= in.MemoryB
 	pod.MemoryBUsed -= in.MemoryB
 
-	log.Println(device.MemoryBUsed)
-
 	return &pb.FreeMemoryReply{}, nil
 }
 
 func (dm *DeviceManager) RegisterDevice(ctx context.Context, in *pb.RegisterDeviceRequest) (*pb.RegisterDeviceReply, error) {
-	log.Printf("Received: RegisterDevice for device %s", in.DeviceId)
+	// log.Printf("Received: RegisterDevice for device %s", in.DeviceId)
 
 	if _, ok := dm.devices[in.DeviceId]; ok {
 		return nil, fmt.Errorf("device already registered")
@@ -169,7 +167,7 @@ func (dm *DeviceManager) RegisterDevice(ctx context.Context, in *pb.RegisterDevi
 }
 
 func (dm *DeviceManager) ReservePodQuota(ctx context.Context, in *pb.ReservePodQuotaRequest) (*pb.ReservePodQuotaReply, error) {
-	log.Printf("Received: RegisterPod for device %s and pod %s", in.DeviceId, in.PodId)
+	// log.Printf("Received: RegisterPod for device %s and pod %s", in.DeviceId, in.PodId)
 
 	if in.DeviceId == "" {
 		return nil, fmt.Errorf("device not specified")
@@ -222,40 +220,6 @@ func (dm *DeviceManager) ReservePodQuota(ctx context.Context, in *pb.ReservePodQ
 	}
 
 	return &pb.ReservePodQuotaReply{}, nil
-}
-
-func (dm *DeviceManager) UnreservePodQuota(ctx context.Context, in *pb.UnreservePodQuotaRequest) (*pb.UnreservePodQuotaQuotaReply, error) {
-	log.Println("Received: UnreservePodQuota")
-
-	if in.DeviceId == "" {
-		return nil, fmt.Errorf("device not specified")
-	}
-	if in.PodId == "" {
-		return nil, fmt.Errorf("pod not specified")
-	}
-
-	dm.unreservePodQuota(in.DeviceId, in.PodId)
-
-	return &pb.UnreservePodQuotaQuotaReply{}, nil
-}
-
-func (dm *DeviceManager) unreservePodQuota(deviceId, podId string) {
-	device := dm.devices[deviceId]
-	if device == nil {
-		return
-	}
-
-	device.mut.Lock()
-	defer device.mut.Unlock()
-
-	pod := device.Pods[podId]
-	if pod == nil {
-		return
-	}
-
-	dm.schedulerPerDevice[deviceId].UnreservePodQuota(podId)
-	device.MemoryBUsed -= pod.MemoryBUsed
-	delete(device.Pods, podId)
 }
 
 func getAvailableMemory(device *Device) float64 {

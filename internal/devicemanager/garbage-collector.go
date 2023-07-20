@@ -14,14 +14,12 @@ import (
 func (dm *DeviceManager) runGarbageCollector() {
 	for {
 		dm.garbageCollectPodQuotas()
-		time.Sleep(30 * time.Second)
+		time.Sleep(2 * time.Second)
 	}
 }
 
 func (dm *DeviceManager) garbageCollectPodQuotas() {
 	for _, device := range dm.devices {
-		log.Printf("Garbage collecting device %s", device.Id)
-
 		device.mut.RLock()
 		pods := []string{}
 		for _, pod := range device.Pods {
@@ -31,16 +29,36 @@ func (dm *DeviceManager) garbageCollectPodQuotas() {
 
 		runningPods, err := getRunningPods(pods)
 		if err != nil {
-			log.Printf("Error getting running pods: %v", err)
+			log.Printf("[GC] Error getting running pods: %v", err)
+			continue
 		}
 
 		for _, podId := range pods {
 			if !runningPods[podId] {
-				log.Printf("Pod %s is not running, removing it from device %s", podId, device.Id)
+				log.Printf("[GC] Pod %s is not running, removing it from device %s", podId, device.Id)
 				dm.unreservePodQuota(device.Id, podId)
 			}
 		}
 	}
+}
+
+func (dm *DeviceManager) unreservePodQuota(deviceId, podId string) {
+	device := dm.devices[deviceId]
+	if device == nil {
+		return
+	}
+
+	device.mut.Lock()
+	defer device.mut.Unlock()
+
+	pod := device.Pods[podId]
+	if pod == nil {
+		return
+	}
+
+	dm.schedulerPerDevice[deviceId].UnreservePodQuota(podId)
+	device.MemoryBUsed -= pod.MemoryBUsed
+	delete(device.Pods, podId)
 }
 
 func getRunningPods(podName []string) (map[string]bool, error) {

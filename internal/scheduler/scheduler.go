@@ -13,6 +13,7 @@ import (
 
 type scheduler struct {
 	lock                sync.RWMutex
+	deviceId            string
 	queue               []*TokenLeaseRequest
 	currentLease        *TokenLease
 	leaseHistory        []*LeaseHistoryEntry
@@ -25,6 +26,7 @@ type scheduler struct {
 func startScheduler(deviceId string, windowDuration, evictionPeriod time.Duration) Scheduler {
 	s := &scheduler{
 		lock:         sync.RWMutex{},
+		deviceId:     deviceId,
 		queue:        []*TokenLeaseRequest{},
 		currentLease: nil,
 		leaseHistory: []*LeaseHistoryEntry{},
@@ -53,10 +55,6 @@ func (s *scheduler) tryScheduleLease() {
 	if s.currentLease == nil && len(s.queue) > 0 {
 		// calculate used quota for each pod in current time window
 		usedQuotaPerPod := s.calculateUsedQuotaPerPod()
-
-		for podId, podQuota := range s.podQuota {
-			log.Printf("Pod %s: used quota %f, limit %f\n", podId, usedQuotaPerPod[podId], podQuota.Limit)
-		}
 
 		// order by used/requested quota
 		sort.Slice(s.queue, func(i, j int) bool {
@@ -163,7 +161,7 @@ func (s *scheduler) cancelLeaseNoLock() {
 
 	s.currentLease = nil
 
-	go s.saveLeaseHistoryEntry(newHistEntry)
+	// go s.saveLeaseHistoryEntry(newHistEntry)
 }
 
 func (s *scheduler) saveLeaseHistoryEntry(entry LeaseHistoryEntry) {

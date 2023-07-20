@@ -9,7 +9,6 @@ service DeviceManager {
   rpc GetAvailableDevices(GetAvailableDevicesRequest) returns (GetAvailableDevicesReply) {}
   
   rpc ReservePodQuota(ReservePodQuotaRequest) returns (ReservePodQuotaReply) {}
-  rpc UnreservePodQuota(UnreservePodQuotaRequest) returns (UnreservePodQuotaQuotaReply) {}
   
   rpc GetToken(GetTokenRequest) returns (GetTokenReply) {}
   rpc ReturnToken(ReturnTokenRequest) returns (ReturnTokenReply) {}
@@ -74,14 +73,6 @@ message ReservePodQuotaRequest {
 }
 
 message ReservePodQuotaReply {
-}
-
-message UnreservePodQuotaRequest {
-  string device_id = 1;
-  string pod_id = 2;
-}
-
-message UnreservePodQuotaQuotaReply {
 }
 
 message GetAvailableDevicesRequest {

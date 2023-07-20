@@ -15,12 +15,12 @@ import (
 
 var (
 	port          = flag.Int("port", 50051, "The server port")
-	tokenLifetime = flag.Int("token-life", 250, "Lifetime of token in milliseconds")
-	windowSize    = flag.Int("windowSize", 10000, "Window size in milliseconds")
+	tokenLifetime = flag.Int("token-life", 30, "Lifetime of token in seconds")
+	windowSize    = flag.Int("windowSize", 120, "Window size in seconds")
 )
 
-var windowDuration = time.Duration(*windowSize) * time.Millisecond
-var tokenDuration = time.Duration(*tokenLifetime) * time.Millisecond
+var windowDuration = time.Duration(*windowSize) * time.Second
+var tokenDuration = time.Duration(*tokenLifetime) * time.Second
 
 func main() {
 	flag.Parse()

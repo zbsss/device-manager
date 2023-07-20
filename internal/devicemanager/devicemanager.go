@@ -48,9 +48,6 @@ func NewTestDeviceManager(schedulerWindow, schedulerTokenExpiration time.Duratio
 	}
 
 	sch := dm.sf.StartScheduler("dev-1")
-	sch.ReservePodQuota(&scheduler.PodQuota{
-		PodId: "device", Requests: 0.5, Limit: 1.0,
-	})
 	dm.schedulerPerDevice["dev-1"] = sch
 
 	go dm.stateLoggerDaemon()
@@ -63,14 +60,25 @@ func (dm *DeviceManager) stateLoggerDaemon() {
 	for {
 		var sb strings.Builder
 		sb.WriteString("\n===Current state===")
+
+		sb.WriteString("\n---Memory---")
 		for _, device := range dm.devices {
-			sb.WriteString(fmt.Sprintf("\nDevice %s: %d/%d", device.Id, device.MemoryBUsed, device.MemoryBTotal))
+			device.mut.RLock()
+			totalMemUsed := float64(device.MemoryBUsed) / float64(device.MemoryBTotal)
+			sb.WriteString(fmt.Sprintf("\nDevice %s: %f", device.Id, totalMemUsed))
 
 			for _, pod := range device.Pods {
-				sb.WriteString(fmt.Sprintf("\n\tPod %s: %d/%d", pod.Id, pod.MemoryBUsed, pod.MemoryBLimit))
+				podMemUsed := float64(pod.MemoryBUsed) / float64(pod.MemoryBLimit)
+				sb.WriteString(fmt.Sprintf("\n\tPod %s: %f", pod.Id, podMemUsed))
 			}
+			device.mut.RUnlock()
 		}
-		sb.WriteString("\n===================\n")
+
+		sb.WriteString("\n\n---CPU---")
+		for _, device := range dm.devices {
+			sb.WriteString(dm.schedulerPerDevice[device.Id].PrintState())
+		}
+		sb.WriteString("\n===================")
 		log.Println(sb.String())
 
 		time.Sleep(30 * time.Second)
