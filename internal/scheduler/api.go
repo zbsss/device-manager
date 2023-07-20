@@ -7,13 +7,15 @@ import (
 type Scheduler interface {
 	EnqueueLeaseRequest(req *TokenLeaseRequest)
 	ReturnLease(lease *TokenLease) error
-	AllocatePodQuota(podQuota *PodQuota) error
+
 	GetAvailableQuota() float64
+	ReservePodQuota(podQuota *PodQuota) error
+	UnreservePodQuota(podId string)
 }
 
 func (s *scheduler) GetAvailableQuota() float64 {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.lock.RLock()
+	defer s.lock.RUnlock()
 
 	availableQuota := 1.0
 	for _, podQuota := range s.podQuota {
@@ -23,7 +25,7 @@ func (s *scheduler) GetAvailableQuota() float64 {
 	return availableQuota
 }
 
-func (s *scheduler) AllocatePodQuota(podQuota *PodQuota) error {
+func (s *scheduler) ReservePodQuota(podQuota *PodQuota) error {
 	availableQuota := s.GetAvailableQuota()
 	if availableQuota <= 0 {
 		return fmt.Errorf("not enough quota available")
@@ -34,6 +36,13 @@ func (s *scheduler) AllocatePodQuota(podQuota *PodQuota) error {
 
 	s.podQuota[podQuota.PodId] = podQuota
 	return nil
+}
+
+func (s *scheduler) UnreservePodQuota(podId string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	delete(s.podQuota, podId)
 }
 
 func (s *scheduler) EnqueueLeaseRequest(req *TokenLeaseRequest) {

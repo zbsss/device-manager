@@ -10,7 +10,7 @@ type Pod struct {
 }
 
 type Device struct {
-	mut          *sync.Mutex
+	mut          *sync.RWMutex
 	Vendor       string
 	Model        string
 	Id           string

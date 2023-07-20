@@ -12,7 +12,7 @@ import (
 )
 
 type scheduler struct {
-	lock                sync.Mutex
+	lock                sync.RWMutex
 	queue               []*TokenLeaseRequest
 	currentLease        *TokenLease
 	leaseHistory        []*LeaseHistoryEntry
@@ -24,7 +24,7 @@ type scheduler struct {
 
 func startScheduler(deviceId string, windowDuration, evictionPeriod time.Duration) Scheduler {
 	s := &scheduler{
-		lock:         sync.Mutex{},
+		lock:         sync.RWMutex{},
 		queue:        []*TokenLeaseRequest{},
 		currentLease: nil,
 		leaseHistory: []*LeaseHistoryEntry{},
@@ -118,8 +118,7 @@ func (s *scheduler) tryTerminateExpiredLease() {
 			return
 		}
 
-		// TODO: release memory owned by this pod
-
+		// Once the Pod is deleted it will be garbage collected by the DeviceManager
 		log.Printf("Pod %s evicted\n", s.currentLease.PodId)
 
 		s.cancelLeaseNoLock()

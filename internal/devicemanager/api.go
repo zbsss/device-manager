@@ -16,6 +16,7 @@ func (dm *DeviceManager) GetAvailableDevices(ctx context.Context, in *pb.GetAvai
 	var devices []*pb.FreeDeviceResources
 
 	for _, device := range dm.devices {
+		device.mut.RLock()
 		if device.Vendor == in.Vendor && device.Model == in.Model {
 			devices = append(devices, &pb.FreeDeviceResources{
 				DeviceId: device.Id,
@@ -23,6 +24,7 @@ func (dm *DeviceManager) GetAvailableDevices(ctx context.Context, in *pb.GetAvai
 				Requests: dm.schedulerPerDevice[device.Id].GetAvailableQuota(),
 			})
 		}
+		device.mut.RUnlock()
 	}
 
 	return &pb.GetAvailableDevicesReply{Free: devices}, nil
@@ -154,7 +156,7 @@ func (dm *DeviceManager) RegisterDevice(ctx context.Context, in *pb.RegisterDevi
 	}
 
 	dm.devices[in.DeviceId] = &Device{
-		mut:          &sync.Mutex{},
+		mut:          &sync.RWMutex{},
 		Id:           in.DeviceId,
 		MemoryBTotal: in.MemoryB,
 		MemoryBUsed:  0,
@@ -198,7 +200,7 @@ func (dm *DeviceManager) ReservePodQuota(ctx context.Context, in *pb.ReservePodQ
 	device.mut.Lock()
 	defer device.mut.Unlock()
 
-	err := dm.schedulerPerDevice[in.DeviceId].AllocatePodQuota(
+	err := dm.schedulerPerDevice[in.DeviceId].ReservePodQuota(
 		&scheduler.PodQuota{
 			PodId: in.PodId, Requests: in.Requests, Limit: in.Limit,
 		},
@@ -223,9 +225,37 @@ func (dm *DeviceManager) ReservePodQuota(ctx context.Context, in *pb.ReservePodQ
 }
 
 func (dm *DeviceManager) UnreservePodQuota(ctx context.Context, in *pb.UnreservePodQuotaRequest) (*pb.UnreservePodQuotaQuotaReply, error) {
-	// TODO: implement
+	log.Println("Received: UnreservePodQuota")
+
+	if in.DeviceId == "" {
+		return nil, fmt.Errorf("device not specified")
+	}
+	if in.PodId == "" {
+		return nil, fmt.Errorf("pod not specified")
+	}
+
+	dm.unreservePodQuota(in.DeviceId, in.PodId)
 
 	return &pb.UnreservePodQuotaQuotaReply{}, nil
+}
+
+func (dm *DeviceManager) unreservePodQuota(deviceId, podId string) {
+	device := dm.devices[deviceId]
+	if device == nil {
+		return
+	}
+
+	device.mut.Lock()
+	defer device.mut.Unlock()
+
+	pod := device.Pods[podId]
+	if pod == nil {
+		return
+	}
+
+	dm.schedulerPerDevice[deviceId].UnreservePodQuota(podId)
+	device.MemoryBUsed -= pod.MemoryBUsed
+	delete(device.Pods, podId)
 }
 
 func getAvailableMemory(device *Device) float64 {

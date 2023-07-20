@@ -34,7 +34,7 @@ func NewTestDeviceManager(schedulerWindow, schedulerTokenExpiration time.Duratio
 	dm := &DeviceManager{
 		devices: map[string]*Device{
 			"dev-1": {
-				mut:          &sync.Mutex{},
+				mut:          &sync.RWMutex{},
 				Vendor:       "example.com",
 				Model:        "mydev",
 				Id:           "dev-1",
@@ -48,12 +48,13 @@ func NewTestDeviceManager(schedulerWindow, schedulerTokenExpiration time.Duratio
 	}
 
 	sch := dm.sf.StartScheduler("dev-1")
-	sch.AllocatePodQuota(&scheduler.PodQuota{
+	sch.ReservePodQuota(&scheduler.PodQuota{
 		PodId: "device", Requests: 0.5, Limit: 1.0,
 	})
 	dm.schedulerPerDevice["dev-1"] = sch
 
 	go dm.stateLoggerDaemon()
+	go dm.runGarbageCollector()
 
 	return dm
 }
