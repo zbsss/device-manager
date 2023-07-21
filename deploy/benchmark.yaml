@@ -4,7 +4,7 @@ kind: Deployment
 metadata:
   name: benchmark
 spec:
-  replicas: 1
+  replicas: 4
   selector:
     matchLabels:
       app: benchmark
@@ -14,7 +14,7 @@ spec:
         app: benchmark
         sharedev.requests: '0.25'
         sharedev.limits: '1.0'
-        sharedev.memory: '0.2'
+        sharedev.memory: '0.25'
         sharedev.vendor: 'example.com'
         sharedev.model: 'mydev'
     spec:

@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	pb "github.com/zbsss/device-manager/generated"
+	"github.com/zbsss/device-manager/internal/memorymanager"
 	"github.com/zbsss/device-manager/internal/scheduler"
 )
 
@@ -15,16 +16,19 @@ func (dm *DeviceManager) GetAvailableDevices(ctx context.Context, in *pb.GetAvai
 
 	var devices []*pb.FreeDeviceResources
 
+	dm.lock.RLock()
+	defer dm.lock.RUnlock()
+
 	for _, device := range dm.devices {
-		device.mut.RLock()
+		device.lock.RLock()
 		if device.Vendor == in.Vendor && device.Model == in.Model {
 			devices = append(devices, &pb.FreeDeviceResources{
 				DeviceId: device.Id,
-				Memory:   getAvailableMemory(device),
-				Requests: dm.schedulerPerDevice[device.Id].GetAvailableQuota(),
+				Memory:   device.mm.GetAvailableQuota(),
+				Requests: device.scheduler.GetAvailableQuota(),
 			})
 		}
-		device.mut.RUnlock()
+		device.lock.RUnlock()
 	}
 
 	log.Printf("Returning %v devices", devices)
@@ -42,12 +46,17 @@ func (dm *DeviceManager) GetToken(ctx context.Context, in *pb.GetTokenRequest) (
 		return nil, fmt.Errorf("pod not specified")
 	}
 
+	device := dm.GetDev(in.DeviceId)
+	if device == nil {
+		return nil, fmt.Errorf("device %s not registered", in.DeviceId)
+	}
+
 	req := &scheduler.TokenLeaseRequest{
 		PodId:    in.PodId,
 		Response: make(chan *scheduler.TokenLease),
 	}
 
-	dm.schedulerPerDevice[in.DeviceId].EnqueueLeaseRequest(req)
+	device.scheduler.EnqueueLeaseRequest(req)
 	token := <-req.Response
 
 	if token == nil {
@@ -67,8 +76,12 @@ func (dm *DeviceManager) ReturnToken(ctx context.Context, in *pb.ReturnTokenRequ
 		return nil, fmt.Errorf("pod not specified")
 	}
 
-	err := dm.schedulerPerDevice[in.DeviceId].ReturnLease(&scheduler.TokenLease{PodId: in.PodId})
+	device := dm.GetDev(in.DeviceId)
+	if device == nil {
+		return nil, fmt.Errorf("device %s not registered", in.DeviceId)
+	}
 
+	err := device.scheduler.ReturnLease(&scheduler.TokenLease{PodId: in.PodId})
 	if err != nil {
 		log.Printf("Error returning token: %s", err)
 	}
@@ -89,27 +102,15 @@ func (dm *DeviceManager) AllocateMemory(ctx context.Context, in *pb.AllocateMemo
 		return nil, fmt.Errorf("memory value is invalid")
 	}
 
-	var device *Device
-	var pod *Pod
-	var ok bool
-
-	if device, ok = dm.devices[in.DeviceId]; !ok {
+	device := dm.GetDev(in.DeviceId)
+	if device == nil {
 		return nil, fmt.Errorf("device %s not registered", in.DeviceId)
 	}
 
-	if pod, ok = device.Pods[in.PodId]; !ok {
-		return nil, fmt.Errorf("pod %s not registered", in.PodId)
+	err := device.mm.AllocateMemory(in.PodId, in.MemoryB)
+	if err != nil {
+		return nil, err
 	}
-
-	device.mut.Lock()
-	defer device.mut.Unlock()
-
-	if device.MemoryBUsed+in.MemoryB > device.MemoryBTotal || pod.MemoryBUsed+in.MemoryB > pod.MemoryBLimit {
-		return nil, fmt.Errorf("OOM: memory limit exceeded")
-	}
-
-	device.MemoryBUsed += in.MemoryB
-	pod.MemoryBUsed += in.MemoryB
 
 	return &pb.AllocateMemoryReply{}, nil
 }
@@ -127,23 +128,12 @@ func (dm *DeviceManager) FreeMemory(ctx context.Context, in *pb.FreeMemoryReques
 		return nil, fmt.Errorf("memory value is invalid")
 	}
 
-	var device *Device
-	var pod *Pod
-	var ok bool
-
-	if device, ok = dm.devices[in.DeviceId]; !ok {
+	device := dm.GetDev(in.DeviceId)
+	if device == nil {
 		return nil, fmt.Errorf("device %s not registered", in.DeviceId)
 	}
 
-	if pod, ok = device.Pods[in.PodId]; !ok {
-		return nil, fmt.Errorf("pod %s not registered", in.PodId)
-	}
-
-	device.mut.Lock()
-	defer device.mut.Unlock()
-
-	device.MemoryBUsed -= in.MemoryB
-	pod.MemoryBUsed -= in.MemoryB
+	device.mm.FreeMemory(in.PodId, in.MemoryB)
 
 	return &pb.FreeMemoryReply{}, nil
 }
@@ -151,6 +141,9 @@ func (dm *DeviceManager) FreeMemory(ctx context.Context, in *pb.FreeMemoryReques
 func (dm *DeviceManager) RegisterDevice(ctx context.Context, in *pb.RegisterDeviceRequest) (*pb.RegisterDeviceReply, error) {
 	log.Printf("Received: RegisterDevice for device %s", in.DeviceId)
 
+	if in.AllocatorPodId == "" {
+		return nil, fmt.Errorf("allocator pod not specified")
+	}
 	if in.DeviceId == "" {
 		return nil, fmt.Errorf("device not specified")
 	}
@@ -161,21 +154,23 @@ func (dm *DeviceManager) RegisterDevice(ctx context.Context, in *pb.RegisterDevi
 		return nil, fmt.Errorf("model not specified")
 	}
 
-	if _, ok := dm.devices[in.DeviceId]; ok {
-		return nil, fmt.Errorf("device already registered")
+	if dm.GetDev(in.DeviceId) != nil {
+		return nil, fmt.Errorf("device %s already registered", in.DeviceId)
 	}
+
+	dm.lock.Lock()
+	defer dm.lock.Unlock()
 
 	dm.devices[in.DeviceId] = &Device{
-		mut:          &sync.RWMutex{},
-		Id:           in.DeviceId,
-		Vendor:       in.Vendor,
-		Model:        in.Model,
-		MemoryBTotal: in.MemoryB,
-		MemoryBUsed:  0,
-		Pods:         map[string]*Pod{},
+		lock:           &sync.RWMutex{},
+		scheduler:      dm.sf.StartScheduler(in.DeviceId),
+		mm:             memorymanager.NewMemoryManager(in.DeviceId, in.MemoryB),
+		Id:             in.DeviceId,
+		AllocatorPodId: in.AllocatorPodId,
+		Vendor:         in.Vendor,
+		Model:          in.Model,
+		Pods:           map[string]bool{},
 	}
-
-	dm.schedulerPerDevice[in.DeviceId] = dm.sf.StartScheduler(in.DeviceId)
 
 	return &pb.RegisterDeviceReply{}, nil
 }
@@ -190,29 +185,25 @@ func (dm *DeviceManager) ReservePodQuota(ctx context.Context, in *pb.ReservePodQ
 		return nil, fmt.Errorf("pod not specified")
 	}
 
-	var device *Device
-	var ok bool
-
-	if device, ok = dm.devices[in.DeviceId]; !ok {
-		return nil, fmt.Errorf("device %s not registered", in.DeviceId)
-	}
-
 	if in.Requests > in.Limit {
 		return nil, fmt.Errorf("requests > limit")
 	}
-
 	if in.Requests < 0 || in.Limit < 0 || in.Memory < 0 {
 		return nil, fmt.Errorf("requests, limit and memory must be positive")
 	}
-
 	if in.Limit == 0 {
 		in.Limit = in.Requests
 	}
 
-	device.mut.Lock()
-	defer device.mut.Unlock()
+	device := dm.GetDev(in.DeviceId)
+	if device == nil {
+		return nil, fmt.Errorf("device %s not registered", in.DeviceId)
+	}
 
-	err := dm.schedulerPerDevice[in.DeviceId].ReservePodQuota(
+	device.lock.Lock()
+	defer device.lock.Unlock()
+
+	err := device.scheduler.ReservePodQuota(
 		&scheduler.PodQuota{
 			PodId: in.PodId, Requests: in.Requests, Limit: in.Limit,
 		},
@@ -221,25 +212,13 @@ func (dm *DeviceManager) ReservePodQuota(ctx context.Context, in *pb.ReservePodQ
 		return nil, err
 	}
 
-	availableMemory := getAvailableMemory(device)
-	if in.Memory > availableMemory {
-		return nil, fmt.Errorf("OOM: memory limit exceeded")
+	err = device.mm.ReservePodQuota(in.PodId, in.Memory)
+	if err != nil {
+		device.scheduler.UnreservePodQuota(in.PodId)
+		return nil, err
 	}
 
-	device.Pods[in.PodId] = &Pod{
-		Id:           in.PodId,
-		MemoryQuota:  in.Memory,
-		MemoryBLimit: uint64(in.Memory * float64(device.MemoryBTotal)),
-		MemoryBUsed:  0,
-	}
+	device.Pods[in.PodId] = true
 
 	return &pb.ReservePodQuotaReply{}, nil
-}
-
-func getAvailableMemory(device *Device) float64 {
-	availableQuota := 1.0
-	for _, pod := range device.Pods {
-		availableQuota -= pod.MemoryQuota
-	}
-	return availableQuota
 }

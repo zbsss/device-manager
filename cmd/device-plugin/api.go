@@ -73,6 +73,7 @@ func (p *DummyDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.Alloca
 
 			resp.Envs = map[string]string{
 				"DEVICE_ID": id,
+				"MEMORY":    "512",
 			}
 		}
 		resps.ContainerResponses = append(resps.ContainerResponses, resp)

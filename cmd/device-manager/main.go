@@ -25,7 +25,7 @@ var tokenDuration = time.Duration(*tokenLifetime) * time.Second
 func main() {
 	flag.Parse()
 
-	dm := devicemanager.NewTestDeviceManager(windowDuration, tokenDuration)
+	dm := devicemanager.NewDeviceManager(windowDuration, tokenDuration)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *port))
 	if err != nil {

@@ -6,7 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
-	"sync"
+	"strconv"
 	"time"
 
 	pb "github.com/zbsss/device-manager/generated"
@@ -18,9 +18,18 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	port := "50051"
-
 	addr := os.Getenv("HOST_IP")
+	allocatorPodId := os.Getenv("ALLOCATOR_POD_ID")
 	deviceId := os.Getenv("DEVICE_ID")
+	vendor := os.Getenv("VENDOR")
+	model := os.Getenv("MODEL")
+	memory := os.Getenv("MEMORY")
+
+	// parse memory into uint64
+	memoryB, err := strconv.ParseUint(memory, 10, 64)
+	if err != nil {
+		log.Fatalf("could not parse memory: %v", err)
+	}
 
 	// TODO: add retries in case the Device Manager was restarted
 
@@ -37,27 +46,28 @@ func main() {
 	grpc := pb.NewDeviceManagerClient(conn)
 	ctx := context.Background()
 
-	_, err = grpc.RegisterDevice(ctx, &pb.RegisterDeviceRequest{
-		Vendor:   "example.com",
-		Model:    "mydev",
-		DeviceId: deviceId,
-		MemoryB:  100000000,
-	})
-	if err != nil {
-		log.Printf("could not register device: %v", err)
-	}
+	for {
+		_, err = grpc.RegisterDevice(ctx, &pb.RegisterDeviceRequest{
+			AllocatorPodId: allocatorPodId,
+			Vendor:         vendor,
+			Model:          model,
+			DeviceId:       deviceId,
+			MemoryB:        memoryB,
+		})
+		if err != nil {
+			log.Printf("could not register device: %v", err)
+		}
 
-	free, err := grpc.GetAvailableDevices(ctx, &pb.GetAvailableDevicesRequest{
-		Vendor: "example.com",
-		Model:  "mydev",
-	})
-	if err != nil {
-		log.Printf("could not get available devices: %v", err)
-	} else {
-		log.Printf("available devices: %v", free.Free)
-	}
+		free, err := grpc.GetAvailableDevices(ctx, &pb.GetAvailableDevicesRequest{
+			Vendor: vendor,
+			Model:  model,
+		})
+		if err != nil {
+			log.Printf("could not get available devices: %v", err)
+		} else {
+			log.Printf("available devices: %v", free.Free)
+		}
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	wg.Wait()
+		time.Sleep(60 * time.Second)
+	}
 }

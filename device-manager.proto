@@ -58,6 +58,8 @@ message RegisterDeviceRequest {
   string device_id = 3;
   
   uint64 memory_b = 4;
+
+  string allocator_pod_id = 5;
 }
 
 message RegisterDeviceReply {

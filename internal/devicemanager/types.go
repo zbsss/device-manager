@@ -1,20 +1,20 @@
 package devicemanager
 
-import "sync"
+import (
+	"sync"
 
-type Pod struct {
-	Id           string
-	MemoryQuota  float64
-	MemoryBLimit uint64
-	MemoryBUsed  uint64
-}
+	"github.com/zbsss/device-manager/internal/memorymanager"
+	"github.com/zbsss/device-manager/internal/scheduler"
+)
 
 type Device struct {
-	mut          *sync.RWMutex
-	Vendor       string
-	Model        string
-	Id           string
-	MemoryBTotal uint64
-	MemoryBUsed  uint64
-	Pods         map[string]*Pod
+	lock      *sync.RWMutex
+	mm        memorymanager.MemoryManager
+	scheduler scheduler.Scheduler
+
+	Id             string
+	AllocatorPodId string
+	Vendor         string
+	Model          string
+	Pods           map[string]bool
 }

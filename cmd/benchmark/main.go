@@ -47,7 +47,7 @@ func main() {
 		_, err := grpc.AllocateMemory(ctx, &pb.AllocateMemoryRequest{
 			DeviceId: deviceId,
 			PodId:    clientId,
-			MemoryB:  100,
+			MemoryB:  128,
 		})
 		if err != nil {
 			log.Fatalf("could not get memory quota: %v", err)
@@ -75,7 +75,7 @@ func main() {
 		_, err = grpc.FreeMemory(ctx, &pb.FreeMemoryRequest{
 			DeviceId: deviceId,
 			PodId:    clientId,
-			MemoryB:  100,
+			MemoryB:  128,
 		})
 		if err != nil {
 			log.Fatalf("could not return memory quota: %v", err)

@@ -25,7 +25,6 @@ type DeviceManagerClient interface {
 	RegisterDevice(ctx context.Context, in *RegisterDeviceRequest, opts ...grpc.CallOption) (*RegisterDeviceReply, error)
 	GetAvailableDevices(ctx context.Context, in *GetAvailableDevicesRequest, opts ...grpc.CallOption) (*GetAvailableDevicesReply, error)
 	ReservePodQuota(ctx context.Context, in *ReservePodQuotaRequest, opts ...grpc.CallOption) (*ReservePodQuotaReply, error)
-	UnreservePodQuota(ctx context.Context, in *UnreservePodQuotaRequest, opts ...grpc.CallOption) (*UnreservePodQuotaQuotaReply, error)
 	GetToken(ctx context.Context, in *GetTokenRequest, opts ...grpc.CallOption) (*GetTokenReply, error)
 	ReturnToken(ctx context.Context, in *ReturnTokenRequest, opts ...grpc.CallOption) (*ReturnTokenReply, error)
 	AllocateMemory(ctx context.Context, in *AllocateMemoryRequest, opts ...grpc.CallOption) (*AllocateMemoryReply, error)
@@ -61,15 +60,6 @@ func (c *deviceManagerClient) GetAvailableDevices(ctx context.Context, in *GetAv
 func (c *deviceManagerClient) ReservePodQuota(ctx context.Context, in *ReservePodQuotaRequest, opts ...grpc.CallOption) (*ReservePodQuotaReply, error) {
 	out := new(ReservePodQuotaReply)
 	err := c.cc.Invoke(ctx, "/device_manager.DeviceManager/ReservePodQuota", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *deviceManagerClient) UnreservePodQuota(ctx context.Context, in *UnreservePodQuotaRequest, opts ...grpc.CallOption) (*UnreservePodQuotaQuotaReply, error) {
-	out := new(UnreservePodQuotaQuotaReply)
-	err := c.cc.Invoke(ctx, "/device_manager.DeviceManager/UnreservePodQuota", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +109,6 @@ type DeviceManagerServer interface {
 	RegisterDevice(context.Context, *RegisterDeviceRequest) (*RegisterDeviceReply, error)
 	GetAvailableDevices(context.Context, *GetAvailableDevicesRequest) (*GetAvailableDevicesReply, error)
 	ReservePodQuota(context.Context, *ReservePodQuotaRequest) (*ReservePodQuotaReply, error)
-	UnreservePodQuota(context.Context, *UnreservePodQuotaRequest) (*UnreservePodQuotaQuotaReply, error)
 	GetToken(context.Context, *GetTokenRequest) (*GetTokenReply, error)
 	ReturnToken(context.Context, *ReturnTokenRequest) (*ReturnTokenReply, error)
 	AllocateMemory(context.Context, *AllocateMemoryRequest) (*AllocateMemoryReply, error)
@@ -139,9 +128,6 @@ func (UnimplementedDeviceManagerServer) GetAvailableDevices(context.Context, *Ge
 }
 func (UnimplementedDeviceManagerServer) ReservePodQuota(context.Context, *ReservePodQuotaRequest) (*ReservePodQuotaReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReservePodQuota not implemented")
-}
-func (UnimplementedDeviceManagerServer) UnreservePodQuota(context.Context, *UnreservePodQuotaRequest) (*UnreservePodQuotaQuotaReply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UnreservePodQuota not implemented")
 }
 func (UnimplementedDeviceManagerServer) GetToken(context.Context, *GetTokenRequest) (*GetTokenReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetToken not implemented")
@@ -218,24 +204,6 @@ func _DeviceManager_ReservePodQuota_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DeviceManagerServer).ReservePodQuota(ctx, req.(*ReservePodQuotaRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _DeviceManager_UnreservePodQuota_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UnreservePodQuotaRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DeviceManagerServer).UnreservePodQuota(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/device_manager.DeviceManager/UnreservePodQuota",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DeviceManagerServer).UnreservePodQuota(ctx, req.(*UnreservePodQuotaRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -330,10 +298,6 @@ var DeviceManager_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReservePodQuota",
 			Handler:    _DeviceManager_ReservePodQuota_Handler,
-		},
-		{
-			MethodName: "UnreservePodQuota",
-			Handler:    _DeviceManager_UnreservePodQuota_Handler,
 		},
 		{
 			MethodName: "GetToken",
