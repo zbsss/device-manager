@@ -13,5 +13,5 @@ dep:
 bench:
 	kubectl apply -f deploy/benchmark.yaml
 
-logs:
-	kind export logs | grep -v "Exporting logs for cluster" | xargs code 
+log:
+	kind export logs ./logs
