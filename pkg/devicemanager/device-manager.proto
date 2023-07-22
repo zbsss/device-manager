@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "github.com/zbsss/device-manager/generated";
+option go_package = "github.com/zbsss/device-manager/pkg/devicemanager";
 
 package device_manager;
 

@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v4.23.4
-// source: device-manager.proto
+// source: pkg/devicemanager/device-manager.proto
 
-package generated
+package devicemanager
 
 import (
 	context "context"
@@ -317,5 +317,5 @@ var DeviceManager_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "device-manager.proto",
+	Metadata: "pkg/devicemanager/device-manager.proto",
 }

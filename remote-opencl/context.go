@@ -5,7 +5,7 @@ import "C"
 import (
 	"context"
 
-	pb "github.com/zbsss/device-manager/generated"
+	pb "github.com/zbsss/device-manager/pkg/devicemanager"
 )
 
 type Context struct {

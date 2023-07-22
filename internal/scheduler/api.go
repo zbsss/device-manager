@@ -6,6 +6,8 @@ import (
 )
 
 type Scheduler interface {
+	Stop()
+
 	EnqueueLeaseRequest(req *TokenLeaseRequest)
 	ReturnLease(lease *TokenLease) error
 
@@ -14,6 +16,10 @@ type Scheduler interface {
 	UnreservePodQuota(podId string)
 
 	PrintState() string
+}
+
+func (s *scheduler) Stop() {
+	s.isRunning.Store(false)
 }
 
 func (s *scheduler) PrintState() string {

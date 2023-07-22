@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/zbsss/device-manager/generated"
 	"github.com/zbsss/device-manager/internal/scheduler"
+	pb "github.com/zbsss/device-manager/pkg/devicemanager"
 )
 
 type DeviceManager struct {
@@ -61,7 +61,7 @@ func (dm *DeviceManager) stateLoggerDaemon() {
 		}
 		sb.WriteString("\n\n---CPU Utilization---")
 		for _, device := range dm.devices {
-			sb.WriteString(device.scheduler.PrintState())
+			sb.WriteString(device.sch.PrintState())
 		}
 		dm.lock.RUnlock()
 

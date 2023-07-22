@@ -7,9 +7,14 @@ import (
 	"sync"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+)
+
+var (
+	DeviceCleanupPeriod = 1 * time.Minute
 )
 
 func (dm *DeviceManager) runGarbageCollector() {
@@ -39,11 +44,38 @@ func (dm *DeviceManager) garbageCollectDevices(wg *sync.WaitGroup) {
 	defer dm.lock.Unlock()
 
 	for _, device := range dm.devices {
-		if !runningAllocators[device.AllocatorPodId] {
+		if pod, ok := runningAllocators[device.AllocatorPodId]; !ok {
 			log.Printf("[GC] Allocator %s is not running, removing device %s", device.AllocatorPodId, device.Id)
 			dm.deregisterDevice(device.Id)
+		} else if len(device.Pods) == 0 && time.Now().After(device.LastUsedAt.Add(DeviceCleanupPeriod)) {
+			log.Printf("[GC] Device %s has not been used for 5 minutes, removing it", device.Id)
+			err := dm.deleteAllocatorDeployment(pod)
+			if err != nil {
+				log.Printf("[GC] Error deleting allocator deployment %s: %v", device.AllocatorPodId, err)
+			}
 		}
 	}
+}
+
+func (dm *DeviceManager) deleteAllocatorDeployment(allocatorPod *v1.Pod) error {
+	deploymentName, ok := allocatorPod.Labels["app"]
+	if !ok {
+		return fmt.Errorf("allocator pod %s does not have a deployment name", allocatorPod.Name)
+	}
+
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil
+	}
+
+	// creates the clientset
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create client: %v", err)
+	}
+
+	err = clientset.AppsV1().Deployments("default").Delete(context.Background(), deploymentName, metav1.DeleteOptions{})
+	return err
 }
 
 func (dm *DeviceManager) deregisterDevice(deviceId string) {
@@ -51,10 +83,7 @@ func (dm *DeviceManager) deregisterDevice(deviceId string) {
 		device.lock.Lock()
 		defer device.lock.Unlock()
 
-		// TODO: terminate scheduler
-		for podId := range device.Pods {
-			device.scheduler.UnreservePodQuota(podId)
-		}
+		device.sch.Stop()
 		delete(dm.devices, deviceId)
 	}
 }
@@ -74,7 +103,7 @@ func (dm *DeviceManager) garbageCollectPodQuotas(wg *sync.WaitGroup) {
 	for _, device := range dm.devices {
 		device.lock.Lock()
 		for podId := range device.Pods {
-			if !runningPods[podId] {
+			if _, ok := runningPods[podId]; !ok {
 				log.Printf("[GC] Pod %s is not running, removing it from device %s", podId, device.Id)
 				dm.unreservePodQuota(device.Id, podId)
 			}
@@ -93,9 +122,13 @@ func (dm *DeviceManager) unreservePodQuota(deviceId, podId string) {
 		return
 	}
 
-	device.scheduler.UnreservePodQuota(podId)
+	device.sch.UnreservePodQuota(podId)
 	device.mm.UnreservePodQuota(podId)
 	delete(device.Pods, podId)
+
+	if len(device.Pods) == 0 {
+		device.LastUsedAt = time.Now()
+	}
 }
 
 type ShareDevPodType string
@@ -105,7 +138,7 @@ const (
 	PodTypeAllocator ShareDevPodType = "allocator"
 )
 
-func getRunningPods(podType ShareDevPodType) (map[string]bool, error) {
+func getRunningPods(podType ShareDevPodType) (map[string]*v1.Pod, error) {
 	// creates the in-cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -128,9 +161,11 @@ func getRunningPods(podType ShareDevPodType) (map[string]bool, error) {
 		return nil, err
 	}
 
-	runningPods := make(map[string]bool)
+	runningPods := make(map[string]*v1.Pod)
 	for _, pod := range pods.Items {
-		runningPods[pod.Name] = pod.Status.Phase == "Running" || pod.Status.Phase == "Pending"
+		if pod.Status.Phase == "Running" || pod.Status.Phase == "Pending" {
+			runningPods[pod.Name] = &pod
+		}
 	}
 	return runningPods, nil
 }

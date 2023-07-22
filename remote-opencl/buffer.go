@@ -6,7 +6,7 @@ import (
 	"context"
 	"unsafe"
 
-	pb "github.com/zbsss/device-manager/generated"
+	pb "github.com/zbsss/device-manager/pkg/devicemanager"
 )
 
 type MemFlags uint64

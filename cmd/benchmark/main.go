@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	pb "github.com/zbsss/device-manager/generated"
+	pb "github.com/zbsss/device-manager/pkg/devicemanager"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

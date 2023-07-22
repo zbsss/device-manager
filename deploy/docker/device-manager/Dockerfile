@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.17 AS build
+FROM golang:1.19 AS build
 
 # Set the Current Working Directory inside the container
 WORKDIR /src

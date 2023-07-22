@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
-	pb "github.com/zbsss/device-manager/generated"
 	"github.com/zbsss/device-manager/internal/memorymanager"
 	"github.com/zbsss/device-manager/internal/scheduler"
+	pb "github.com/zbsss/device-manager/pkg/devicemanager"
 )
 
 func (dm *DeviceManager) GetAvailableDevices(ctx context.Context, in *pb.GetAvailableDevicesRequest) (*pb.GetAvailableDevicesReply, error) {
@@ -25,7 +26,7 @@ func (dm *DeviceManager) GetAvailableDevices(ctx context.Context, in *pb.GetAvai
 			devices = append(devices, &pb.FreeDeviceResources{
 				DeviceId: device.Id,
 				Memory:   device.mm.GetAvailableQuota(),
-				Requests: device.scheduler.GetAvailableQuota(),
+				Requests: device.sch.GetAvailableQuota(),
 			})
 		}
 		device.lock.RUnlock()
@@ -56,7 +57,7 @@ func (dm *DeviceManager) GetToken(ctx context.Context, in *pb.GetTokenRequest) (
 		Response: make(chan *scheduler.TokenLease),
 	}
 
-	device.scheduler.EnqueueLeaseRequest(req)
+	device.sch.EnqueueLeaseRequest(req)
 	token := <-req.Response
 
 	if token == nil {
@@ -81,7 +82,7 @@ func (dm *DeviceManager) ReturnToken(ctx context.Context, in *pb.ReturnTokenRequ
 		return nil, fmt.Errorf("device %s not registered", in.DeviceId)
 	}
 
-	err := device.scheduler.ReturnLease(&scheduler.TokenLease{PodId: in.PodId})
+	err := device.sch.ReturnLease(&scheduler.TokenLease{PodId: in.PodId})
 	if err != nil {
 		log.Printf("Error returning token: %s", err)
 	}
@@ -163,13 +164,14 @@ func (dm *DeviceManager) RegisterDevice(ctx context.Context, in *pb.RegisterDevi
 
 	dm.devices[in.DeviceId] = &Device{
 		lock:           &sync.RWMutex{},
-		scheduler:      dm.sf.StartScheduler(in.DeviceId),
+		sch:            dm.sf.StartScheduler(in.DeviceId),
 		mm:             memorymanager.NewMemoryManager(in.DeviceId, in.MemoryB),
 		Id:             in.DeviceId,
 		AllocatorPodId: in.AllocatorPodId,
 		Vendor:         in.Vendor,
 		Model:          in.Model,
 		Pods:           map[string]bool{},
+		LastUsedAt:     time.Now(),
 	}
 
 	return &pb.RegisterDeviceReply{}, nil
@@ -203,7 +205,7 @@ func (dm *DeviceManager) ReservePodQuota(ctx context.Context, in *pb.ReservePodQ
 	device.lock.Lock()
 	defer device.lock.Unlock()
 
-	err := device.scheduler.ReservePodQuota(
+	err := device.sch.ReservePodQuota(
 		&scheduler.PodQuota{
 			PodId: in.PodId, Requests: in.Requests, Limit: in.Limit,
 		},
@@ -214,7 +216,7 @@ func (dm *DeviceManager) ReservePodQuota(ctx context.Context, in *pb.ReservePodQ
 
 	err = device.mm.ReservePodQuota(in.PodId, in.Memory)
 	if err != nil {
-		device.scheduler.UnreservePodQuota(in.PodId)
+		device.sch.UnreservePodQuota(in.PodId)
 		return nil, err
 	}
 

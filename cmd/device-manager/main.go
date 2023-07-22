@@ -7,8 +7,8 @@ import (
 	"net"
 	"time"
 
-	pb "github.com/zbsss/device-manager/generated"
 	"github.com/zbsss/device-manager/internal/devicemanager"
+	pb "github.com/zbsss/device-manager/pkg/devicemanager"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )

@@ -8,10 +8,12 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type scheduler struct {
+	isRunning           atomic.Bool
 	lock                sync.RWMutex
 	deviceId            string
 	queue               []*TokenLeaseRequest
@@ -42,7 +44,9 @@ func startScheduler(deviceId string, windowDuration, evictionPeriod time.Duratio
 }
 
 func (s *scheduler) run() {
-	for {
+	s.isRunning.Store(true)
+
+	for s.isRunning.Load() {
 		s.tryScheduleLease()
 		s.tryTerminateExpiredLease()
 	}

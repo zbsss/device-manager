@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	pb "github.com/zbsss/device-manager/generated"
+	pb "github.com/zbsss/device-manager/pkg/devicemanager"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -30,8 +30,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not parse memory: %v", err)
 	}
-
-	// TODO: add retries in case the Device Manager was restarted
 
 	conn, err := grpc.Dial(
 		fmt.Sprintf("%s:%s", addr, port),
