@@ -134,6 +134,7 @@ func (s *scheduler) calculateUsedQuotaPerPod() map[string]float64 {
 	windowStart := time.Now().Add(-s.windowDuration)
 
 	for _, entry := range s.leaseHistory {
+		entry := entry
 		if entry.ReturnedAt.After(windowStart) {
 			if entry.LeasedAt.Before(windowStart) {
 				entry.LeasedAt = windowStart

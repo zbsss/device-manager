@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	DeviceCleanupPeriod = 1 * time.Minute
+	DeviceCleanupPeriod = 10 * time.Minute
 )
 
 func (dm *DeviceManager) runGarbageCollector() {
@@ -49,7 +49,7 @@ func (dm *DeviceManager) garbageCollectDevices(wg *sync.WaitGroup) {
 			dm.deregisterDevice(device.Id)
 		} else if len(device.Pods) == 0 && time.Now().After(device.LastUsedAt.Add(DeviceCleanupPeriod)) {
 			log.Printf("[GC] Device %s has not been used for 5 minutes, removing it", device.Id)
-			err := dm.deleteAllocatorDeployment(pod)
+			err := dm.deleteAllocatorDeployment(&pod)
 			if err != nil {
 				log.Printf("[GC] Error deleting allocator deployment %s: %v", device.AllocatorPodId, err)
 			}
@@ -138,7 +138,7 @@ const (
 	PodTypeAllocator ShareDevPodType = "allocator"
 )
 
-func getRunningPods(podType ShareDevPodType) (map[string]*v1.Pod, error) {
+func getRunningPods(podType ShareDevPodType) (map[string]v1.Pod, error) {
 	// creates the in-cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -161,10 +161,10 @@ func getRunningPods(podType ShareDevPodType) (map[string]*v1.Pod, error) {
 		return nil, err
 	}
 
-	runningPods := make(map[string]*v1.Pod)
+	runningPods := make(map[string]v1.Pod)
 	for _, pod := range pods.Items {
 		if pod.Status.Phase == "Running" || pod.Status.Phase == "Pending" {
-			runningPods[pod.Name] = &pod
+			runningPods[pod.Name] = pod
 		}
 	}
 	return runningPods, nil
